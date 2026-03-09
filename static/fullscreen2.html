@@ -1,0 +1,977 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Fullscreen 2 — Three.js</title>
+  <style>
+    :root {
+      --stage-left: 0px;
+      --stage-top: 0px;
+      --stage-width: 1152px;
+      --stage-height: 768px;
+    }
+
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #000;
+      position: relative;
+    }
+
+    canvas {
+      display: block;
+      position: fixed;
+      top: var(--stage-top);
+      left: var(--stage-left);
+      width: var(--stage-width);
+      height: var(--stage-height);
+    }
+
+    video {
+      display: none;
+    }
+
+    .viewport-frame {
+      position: fixed;
+      top: var(--stage-top);
+      left: var(--stage-left);
+      width: var(--stage-width);
+      height: var(--stage-height);
+      border: 1px solid rgba(255, 255, 255, 0.28);
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    .viewport-controls {
+      position: fixed;
+      top: 12px;
+      right: 12px;
+      z-index: 20;
+      display: grid;
+      grid-template-columns: auto 84px;
+      gap: 8px 10px;
+      align-items: center;
+      padding: 12px;
+      background: rgba(0, 0, 0, 0.78);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 12px;
+      color: #fff;
+      font: 12px/1.2 Segoe UI, sans-serif;
+    }
+
+    .viewport-controls input {
+      width: 84px;
+      padding: 6px 8px;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.08);
+      color: #fff;
+    }
+
+    .viewport-controls button {
+      padding: 8px 10px;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.1);
+      color: #fff;
+      cursor: pointer;
+    }
+
+    .viewport-controls .buttons {
+      grid-column: 1 / span 2;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .viewport-controls .presets {
+      grid-column: 1 / span 2;
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div class="viewport-frame" aria-hidden="true"></div>
+  <div class="viewport-controls">
+    <label for="vp-x">X</label>
+    <input id="vp-x" type="number" min="0" max="10000" step="1" />
+    <label for="vp-y">Y</label>
+    <input id="vp-y" type="number" min="0" max="10000" step="1" />
+    <label for="vp-w">W</label>
+    <input id="vp-w" type="number" min="64" max="10000" step="1" />
+    <label for="vp-h">H</label>
+    <input id="vp-h" type="number" min="64" max="10000" step="1" />
+    <div class="buttons">
+      <button id="vp-apply" type="button">Apply Viewport</button>
+      <button id="vp-reset" type="button">Reset 1152x768</button>
+    </div>
+    <div class="presets">
+      <button id="vp-top-left" type="button">Top-left</button>
+      <button id="vp-centered" type="button">Centered</button>
+      <button id="vp-full" type="button">Full window</button>
+    </div>
+  </div>
+  <video id="templateVideo" src="/media/visual-loop.mp4" muted autoplay loop playsinline preload="auto"></video>
+
+  <script type="module">
+    import * as THREE from 'https://unpkg.com/three@0.165.0/build/three.module.js';
+
+    function parseViewportNumber(params, key, fallback, min, max) {
+      const raw = Number(params.get(key));
+      if (!Number.isFinite(raw)) return fallback;
+      return Math.max(min, Math.min(max, raw));
+    }
+
+    const VIEWPORT_STORAGE_KEY = 'yolo.fullscreen2.viewport';
+
+    function loadViewport() {
+      const params = new URLSearchParams(window.location.search);
+      let stored = {};
+      try {
+        stored = JSON.parse(localStorage.getItem(VIEWPORT_STORAGE_KEY) || '{}') || {};
+      } catch (_) {}
+      return {
+        x: parseViewportNumber(params, 'x', Number(stored.x) || 0, 0, 10000),
+        y: parseViewportNumber(params, 'y', Number(stored.y) || 0, 0, 10000),
+        width: parseViewportNumber(params, 'w', Number(stored.width) || 1152, 64, 10000),
+        height: parseViewportNumber(params, 'h', Number(stored.height) || 768, 64, 10000),
+      };
+    }
+
+    const viewport = loadViewport();
+
+    function applyViewportCss() {
+      document.documentElement.style.setProperty('--stage-left', `${viewport.x}px`);
+      document.documentElement.style.setProperty('--stage-top', `${viewport.y}px`);
+      document.documentElement.style.setProperty('--stage-width', `${viewport.width}px`);
+      document.documentElement.style.setProperty('--stage-height', `${viewport.height}px`);
+    }
+
+    function persistViewport() {
+      try {
+        localStorage.setItem(VIEWPORT_STORAGE_KEY, JSON.stringify(viewport));
+      } catch (_) {}
+    }
+
+    function updateViewportUrl() {
+      const url = new URL(window.location.href);
+      url.searchParams.set('x', String(viewport.x));
+      url.searchParams.set('y', String(viewport.y));
+      url.searchParams.set('w', String(viewport.width));
+      url.searchParams.set('h', String(viewport.height));
+      window.history.replaceState({}, '', url.toString());
+    }
+
+    applyViewportCss();
+
+    const templateVideo = document.getElementById('templateVideo');
+    const viewportInputs = {
+      x: document.getElementById('vp-x'),
+      y: document.getElementById('vp-y'),
+      width: document.getElementById('vp-w'),
+      height: document.getElementById('vp-h'),
+      apply: document.getElementById('vp-apply'),
+      reset: document.getElementById('vp-reset'),
+      topLeft: document.getElementById('vp-top-left'),
+      centered: document.getElementById('vp-centered'),
+      full: document.getElementById('vp-full'),
+    };
+    let viewportApplyTimer = null;
+
+    function syncViewportInputs() {
+      viewportInputs.x.value = String(viewport.x);
+      viewportInputs.y.value = String(viewport.y);
+      viewportInputs.width.value = String(viewport.width);
+      viewportInputs.height.value = String(viewport.height);
+    }
+
+    const state = {
+      ws: null,
+      people: new Map(),
+      planeReady: false,
+      cameraHeightM: 1.5,
+      lastFrameAtMs: 0,
+      visualConfig: {
+        room_width_m: 8.0,
+        min_depth_m: 1.2,
+        max_depth_m: 12.0,
+        person_height_m: 1.7,
+        person_width_m: 0.55,
+        height_scale: 1.0,
+        width_scale: 1.0,
+        media_scale: 1.0,
+        offset_x_px: 0.0,
+        offset_y_px: 0.0,
+        bottom_offset_px: 0.0,
+        fov_deg: 84.0,
+        flip_depth: false,
+        particles_enabled: true,
+        particles_count: 260,
+        particles_size_px: 3.2,
+        particles_opacity: 0.3,
+        particles_speed: 1.0,
+        particles_life: 2.8,
+        particles_preset: 'classic',
+      },
+    };
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setSize(viewport.width, viewport.height, false);
+    renderer.setClearColor(0x000000, 1);
+    document.body.appendChild(renderer.domElement);
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.OrthographicCamera(-viewport.width / 2, viewport.width / 2, viewport.height / 2, -viewport.height / 2, -1000, 1000);
+    camera.position.z = 10;
+
+    function applyViewportFromInputs() {
+      viewport.x = Math.max(0, Math.min(10000, Number(viewportInputs.x.value) || 0));
+      viewport.y = Math.max(0, Math.min(10000, Number(viewportInputs.y.value) || 0));
+      viewport.width = Math.max(64, Math.min(10000, Number(viewportInputs.width.value) || 1152));
+      viewport.height = Math.max(64, Math.min(10000, Number(viewportInputs.height.value) || 768));
+      applyViewportCss();
+      persistViewport();
+      updateViewportUrl();
+      resize();
+      syncViewportInputs();
+    }
+
+    function scheduleViewportApply() {
+      if (viewportApplyTimer) clearTimeout(viewportApplyTimer);
+      viewportApplyTimer = setTimeout(() => {
+        viewportApplyTimer = null;
+        applyViewportFromInputs();
+      }, 180);
+    }
+
+    function setViewportPreset(next) {
+      viewport.x = next.x;
+      viewport.y = next.y;
+      viewport.width = next.width;
+      viewport.height = next.height;
+      applyViewportCss();
+      persistViewport();
+      updateViewportUrl();
+      resize();
+      syncViewportInputs();
+    }
+
+    function centeredPreset() {
+      const width = 1152;
+      const height = 768;
+      return {
+        x: Math.max(0, Math.round((window.innerWidth - width) / 2)),
+        y: Math.max(0, Math.round((window.innerHeight - height) / 2)),
+        width,
+        height,
+      };
+    }
+
+    function fullWindowPreset() {
+      return {
+        x: 0,
+        y: 0,
+        width: Math.max(64, window.innerWidth),
+        height: Math.max(64, window.innerHeight),
+      };
+    }
+
+    function resetViewport() {
+      setViewportPreset({ x: 0, y: 0, width: 1152, height: 768 });
+    }
+
+    viewportInputs.apply.addEventListener('click', applyViewportFromInputs);
+    viewportInputs.reset.addEventListener('click', resetViewport);
+    viewportInputs.topLeft.addEventListener('click', () => setViewportPreset({ x: 0, y: 0, width: 1152, height: 768 }));
+    viewportInputs.centered.addEventListener('click', () => setViewportPreset(centeredPreset()));
+    viewportInputs.full.addEventListener('click', () => setViewportPreset(fullWindowPreset()));
+    [viewportInputs.x, viewportInputs.y, viewportInputs.width, viewportInputs.height].forEach((input) => {
+      input.addEventListener('input', scheduleViewportApply);
+      input.addEventListener('change', applyViewportFromInputs);
+    });
+    syncViewportInputs();
+
+    const particlesGroup = new THREE.Group();
+    scene.add(particlesGroup);
+
+    let particleGeometry = null;
+    let particleMaterial = null;
+    let particles = null;
+    let particlePositions = new Float32Array(0);
+    let particleVelocityX = new Float32Array(0);
+    let particleVelocityY = new Float32Array(0);
+    let particleSeeds = new Float32Array(0);
+    let particleLife = new Float32Array(0);
+    let particleMaxLife = new Float32Array(0);
+    let particleDrag = new Float32Array(0);
+    let particleSpin = new Float32Array(0);
+    let particleSizes = new Float32Array(0);
+    let particleAlphas = new Float32Array(0);
+    let particleColors = new Float32Array(0);
+    let currentParticleCount = 0;
+    let particleCursor = 0;
+
+    function deactivateParticle(i) {
+      const idx = i * 3;
+      particlePositions[idx + 0] = 100000;
+      particlePositions[idx + 1] = 100000;
+      particlePositions[idx + 2] = -40;
+      particleVelocityX[i] = 0;
+      particleVelocityY[i] = 0;
+      particleLife[i] = 0;
+      particleMaxLife[i] = 1;
+      particleDrag[i] = 0.92;
+      particleSpin[i] = 0;
+      particleSizes[i] = 0.01;
+      particleAlphas[i] = 0;
+      particleColors[idx + 0] = 0;
+      particleColors[idx + 1] = 0;
+      particleColors[idx + 2] = 0;
+    }
+
+    function allocateParticleSlot() {
+      if (currentParticleCount <= 0) return -1;
+      const index = particleCursor;
+      particleCursor = (particleCursor + 1) % currentParticleCount;
+      return index;
+    }
+
+    function spawnTrailParticle(i, emitter, timeMs) {
+      if (i < 0 || !emitter) return;
+      const idx = i * 3;
+      const speedMul = Math.max(0, state.visualConfig.particles_speed || 1.0);
+      const baseSize = Math.max(0.2, state.visualConfig.particles_size_px || 3.2);
+      const baseOpacity = clamp(state.visualConfig.particles_opacity || 0.3, 0, 1);
+      const preset = state.visualConfig.particles_preset === 'flow' ? 'flow' : 'classic';
+      const motionX = Number.isFinite(emitter.velocityX) ? emitter.velocityX : 0;
+      const motionY = Number.isFinite(emitter.velocityY) ? emitter.velocityY : 0;
+      const motionSpeed = Math.hypot(motionX, motionY);
+
+      particleSeeds[i] = Math.random() * Math.PI * 2;
+
+      let trailX = 0;
+      let trailY = 1;
+      if (motionSpeed > 0.001) {
+        trailX = -motionX / motionSpeed;
+        trailY = -motionY / motionSpeed;
+      } else {
+        const fallbackAngle = (timeMs * 0.0017) + particleSeeds[i];
+        trailX = Math.cos(fallbackAngle) * 0.3;
+        trailY = Math.sin(fallbackAngle) * 0.7;
+      }
+
+      const sideX = -trailY;
+      const sideY = trailX;
+      const backOffset = emitter.drawWidth * (0.16 + Math.random() * 0.18);
+      const verticalBand = (Math.random() - 0.5) * emitter.drawHeight * 0.72;
+      const sideOffset = (Math.random() - 0.5) * emitter.drawWidth * 0.34;
+      const turbulenceOffset = (Math.random() - 0.5) * 18;
+
+      particlePositions[idx + 0] = emitter.centerX + trailX * backOffset + sideX * sideOffset + turbulenceOffset;
+      particlePositions[idx + 1] = emitter.centerY + trailY * backOffset + verticalBand + sideY * sideOffset * 0.18;
+      particlePositions[idx + 2] = -32 - Math.random() * 12;
+
+      const ribbon = Math.sin(timeMs * 0.0012 + particleSeeds[i] * 1.6);
+      const launch = (preset === 'flow' ? 95 : 62) + Math.random() * (preset === 'flow' ? 160 : 110);
+      const inherit = 0.14 + clamp(motionSpeed / 1400, 0, 0.34);
+      const cross = preset === 'flow' ? 78 : 42;
+      const lift = preset === 'flow' ? 18 : 10;
+      particleVelocityX[i] = motionX * inherit + trailX * launch + sideX * ribbon * cross + (Math.random() - 0.5) * 34;
+      particleVelocityY[i] = motionY * inherit + trailY * launch + sideY * ribbon * cross + lift + (Math.random() - 0.5) * 26;
+
+      const lifeMul = clamp(state.visualConfig.particles_life || 2.8, 0.1, 12);
+      const maxLife = ((preset === 'flow' ? 1.2 : 0.9) + Math.random() * (preset === 'flow' ? 1.2 : 0.8) + clamp(motionSpeed / 1200, 0, 0.8)) * lifeMul;
+      particleLife[i] = maxLife;
+      particleMaxLife[i] = maxLife;
+      particleDrag[i] = preset === 'flow' ? (0.93 + Math.random() * 0.02) : (0.90 + Math.random() * 0.035);
+      particleSpin[i] = (Math.random() - 0.5) * (preset === 'flow' ? 2.2 : 1.3);
+      particleSizes[i] = Math.max(1.4, baseSize * (preset === 'flow' ? (1.08 + Math.random() * 1.15) : (0.92 + Math.random() * 0.85)));
+      particleAlphas[i] = clamp(baseOpacity * (0.72 + clamp(motionSpeed / 900, 0, 0.95)), 0.18, 1.0);
+      particleColors[idx + 0] = preset === 'flow' ? 1.28 : 1.16;
+      particleColors[idx + 1] = preset === 'flow' ? 0.72 : 0.52;
+      particleColors[idx + 2] = preset === 'flow' ? 0.24 : 0.16;
+    }
+
+    function rebuildParticles() {
+      const desiredCount = Math.max(0, Math.round(state.visualConfig.particles_count || 0));
+      if (particles && desiredCount === currentParticleCount) {
+        particleMaterial.uniforms.uBoost.value = 1.15 + clamp(state.visualConfig.particles_opacity || 0.3, 0, 1) * 1.75;
+        particleMaterial.uniforms.uPixelRatio.value = Math.min(window.devicePixelRatio || 1, 2);
+        particles.visible = !!state.visualConfig.particles_enabled && desiredCount > 0;
+        return;
+      }
+
+      if (particles) {
+        particlesGroup.remove(particles);
+        particleGeometry.dispose();
+        particleMaterial.dispose();
+      }
+
+      currentParticleCount = desiredCount;
+      particlePositions = new Float32Array(desiredCount * 3);
+      particleVelocityX = new Float32Array(desiredCount);
+      particleVelocityY = new Float32Array(desiredCount);
+      particleSeeds = new Float32Array(desiredCount);
+      particleLife = new Float32Array(desiredCount);
+      particleMaxLife = new Float32Array(desiredCount);
+      particleDrag = new Float32Array(desiredCount);
+      particleSpin = new Float32Array(desiredCount);
+      particleSizes = new Float32Array(desiredCount);
+      particleAlphas = new Float32Array(desiredCount);
+      particleColors = new Float32Array(desiredCount * 3);
+      particleCursor = 0;
+      particleGeometry = new THREE.BufferGeometry();
+      for (let i = 0; i < desiredCount; i += 1) deactivateParticle(i);
+      particleGeometry.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3).setUsage(THREE.DynamicDrawUsage));
+      particleGeometry.setAttribute('aSize', new THREE.BufferAttribute(particleSizes, 1).setUsage(THREE.DynamicDrawUsage));
+      particleGeometry.setAttribute('aAlpha', new THREE.BufferAttribute(particleAlphas, 1).setUsage(THREE.DynamicDrawUsage));
+      particleGeometry.setAttribute('aColor', new THREE.BufferAttribute(particleColors, 3).setUsage(THREE.DynamicDrawUsage));
+
+      particleMaterial = new THREE.ShaderMaterial({
+        uniforms: {
+          uBoost: { value: 1.15 + clamp(state.visualConfig.particles_opacity || 0.3, 0, 1) * 1.75 },
+          uPixelRatio: { value: Math.min(window.devicePixelRatio || 1, 2) },
+        },
+        vertexShader: `
+          attribute float aSize;
+          attribute float aAlpha;
+          attribute vec3 aColor;
+          uniform float uPixelRatio;
+          varying float vAlpha;
+          varying vec3 vColor;
+          void main() {
+            vAlpha = aAlpha;
+            vColor = aColor;
+            vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+            gl_Position = projectionMatrix * mvPosition;
+            gl_PointSize = max(0.01, aSize * uPixelRatio);
+          }
+        `,
+        fragmentShader: `
+          uniform float uBoost;
+          varying float vAlpha;
+          varying vec3 vColor;
+          void main() {
+            vec2 uv = gl_PointCoord - vec2(0.5);
+            float dist = length(uv);
+            if (dist > 0.5) discard;
+            float aura = pow(max(0.0, 1.0 - dist / 0.5), 1.55);
+            float glow = pow(max(0.0, 1.0 - dist / 0.5), 3.2);
+            float core = pow(max(0.0, 1.0 - dist / 0.22), 5.8);
+            float flare = pow(max(0.0, 1.0 - dist / 0.12), 9.0);
+            float density = (aura * 0.44 + glow * 0.95 + core * 1.7 + flare * 1.35) * max(0.0, vAlpha);
+            vec3 hotCore = mix(vColor, vec3(1.0, 0.96, 0.9), clamp(core + flare * 0.8, 0.0, 1.0));
+            vec3 color = hotCore * density * uBoost * 1.85;
+            float alpha = clamp(density * 0.72, 0.0, 1.0);
+            gl_FragColor = vec4(color, alpha);
+          }
+        `,
+        transparent: true,
+        blending: THREE.CustomBlending,
+        blendEquation: THREE.AddEquation,
+        blendSrc: THREE.OneFactor,
+        blendDst: THREE.OneFactor,
+        blendEquationAlpha: THREE.AddEquation,
+        blendSrcAlpha: THREE.OneFactor,
+        blendDstAlpha: THREE.OneFactor,
+        depthWrite: false,
+        depthTest: false,
+      });
+      particles = new THREE.Points(particleGeometry, particleMaterial);
+      particles.frustumCulled = false;
+      particles.renderOrder = 5;
+      particles.visible = !!state.visualConfig.particles_enabled && desiredCount > 0;
+      particlesGroup.add(particles);
+    }
+
+    function clamp(value, min, max) {
+      return Math.max(min, Math.min(max, value));
+    }
+
+    function resize() {
+      const width = viewport.width;
+      const height = viewport.height;
+      renderer.setSize(width, height);
+      camera.left = -width / 2;
+      camera.right = width / 2;
+      camera.top = height / 2;
+      camera.bottom = -height / 2;
+      camera.updateProjectionMatrix();
+      if (particleMaterial) {
+        particleMaterial.uniforms.uPixelRatio.value = Math.min(window.devicePixelRatio || 1, 2);
+      }
+      if (currentParticleCount > 0) {
+        for (let i = 0; i < currentParticleCount; i += 1) deactivateParticle(i);
+        if (particleGeometry) {
+          particleGeometry.attributes.position.needsUpdate = true;
+          particleGeometry.attributes.aSize.needsUpdate = true;
+          particleGeometry.attributes.aAlpha.needsUpdate = true;
+          particleGeometry.attributes.aColor.needsUpdate = true;
+        }
+      }
+    }
+
+    window.addEventListener('resize', resize, { passive: true });
+    resize();
+
+    async function ensureTemplatePlayback() {
+      try {
+        templateVideo.muted = true;
+        await templateVideo.play();
+      } catch (_) {}
+
+      for (const person of state.people.values()) {
+        if (!person.video) continue;
+        try {
+          person.video.muted = true;
+          await person.video.play();
+        } catch (_) {}
+      }
+    }
+
+    document.addEventListener('pointerdown', ensureTemplatePlayback, { passive: true, once: true });
+    ensureTemplatePlayback();
+
+    function createPersonVideo() {
+      const video = document.createElement('video');
+      video.src = templateVideo.currentSrc || templateVideo.src;
+      video.muted = true;
+      video.loop = true;
+      video.autoplay = true;
+      video.playsInline = true;
+      video.preload = 'auto';
+      video.style.display = 'none';
+      document.body.appendChild(video);
+      return video;
+    }
+
+    function ensurePersonResources(person) {
+      if (!person.video) {
+        person.video = createPersonVideo();
+        person.texture = new THREE.VideoTexture(person.video);
+        person.texture.colorSpace = THREE.SRGBColorSpace;
+        person.texture.minFilter = THREE.LinearFilter;
+        person.texture.magFilter = THREE.LinearFilter;
+        person.texture.generateMipmaps = false;
+
+        person.material = new THREE.MeshBasicMaterial({
+          map: person.texture,
+          transparent: true,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+          side: THREE.DoubleSide,
+          toneMapped: false,
+        });
+        person.mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), person.material);
+        person.mesh.position.z = 0;
+        scene.add(person.mesh);
+      }
+      return person;
+    }
+
+    function disposePersonResources(person) {
+      if (!person) return;
+      if (person.mesh) {
+        scene.remove(person.mesh);
+        person.mesh.geometry.dispose();
+        person.material.dispose();
+      }
+      if (person.texture) person.texture.dispose();
+      if (person.video) {
+        try { person.video.pause(); } catch (_) {}
+        try { person.video.remove(); } catch (_) {}
+      }
+      person.mesh = null;
+      person.material = null;
+      person.texture = null;
+      person.video = null;
+    }
+
+    function applyVisualConfig(config) {
+      if (!config || typeof config !== 'object') return;
+      const cfg = state.visualConfig;
+      if (config.room_width_m !== undefined) cfg.room_width_m = Math.max(1.0, Number(config.room_width_m) || cfg.room_width_m);
+      if (config.min_depth_m !== undefined) cfg.min_depth_m = Math.max(0.15, Number(config.min_depth_m) || cfg.min_depth_m);
+      if (config.max_depth_m !== undefined) cfg.max_depth_m = Math.max(0.3, Number(config.max_depth_m) || cfg.max_depth_m);
+      if (config.person_height_m !== undefined) cfg.person_height_m = Math.max(0.4, Number(config.person_height_m) || cfg.person_height_m);
+      if (config.person_width_m !== undefined) cfg.person_width_m = Math.max(0.1, Number(config.person_width_m) || cfg.person_width_m);
+      if (config.height_scale !== undefined) cfg.height_scale = Math.max(0.2, Number(config.height_scale) || cfg.height_scale);
+      if (config.width_scale !== undefined) cfg.width_scale = Math.max(0.2, Number(config.width_scale) || cfg.width_scale);
+      if (config.media_scale !== undefined) cfg.media_scale = Math.max(0.1, Number(config.media_scale) || cfg.media_scale);
+      if (config.offset_x_px !== undefined) cfg.offset_x_px = Number(config.offset_x_px) || 0;
+      if (config.offset_y_px !== undefined) cfg.offset_y_px = Number(config.offset_y_px) || 0;
+      if (config.bottom_offset_px !== undefined) cfg.bottom_offset_px = Number(config.bottom_offset_px) || 0;
+      if (config.fov_deg !== undefined) cfg.fov_deg = clamp(Number(config.fov_deg) || cfg.fov_deg, 35, 130);
+      if (config.flip_depth !== undefined) cfg.flip_depth = !!config.flip_depth;
+      if (config.particles_enabled !== undefined) cfg.particles_enabled = !!config.particles_enabled;
+      if (config.particles_preset !== undefined) {
+        const preset = String(config.particles_preset || cfg.particles_preset || 'classic').toLowerCase();
+        cfg.particles_preset = preset === 'flow' ? 'flow' : 'classic';
+      }
+      if (config.particles_count !== undefined) {
+        const nextCount = Number(config.particles_count);
+        if (Number.isFinite(nextCount)) cfg.particles_count = clamp(nextCount, 0, 200000);
+      }
+      if (config.particles_size_px !== undefined) cfg.particles_size_px = clamp(Number(config.particles_size_px) || cfg.particles_size_px, 0.2, 30);
+      if (config.particles_opacity !== undefined) cfg.particles_opacity = clamp(Number(config.particles_opacity) || cfg.particles_opacity, 0, 1);
+      if (config.particles_speed !== undefined) cfg.particles_speed = clamp(Number(config.particles_speed) || cfg.particles_speed, 0, 10);
+      if (config.particles_life !== undefined) cfg.particles_life = clamp(Number(config.particles_life) || cfg.particles_life, 0.1, 12);
+      cfg.max_depth_m = Math.max(cfg.min_depth_m + 0.1, cfg.max_depth_m);
+      rebuildParticles();
+    }
+
+    async function loadVisualConfig() {
+      try {
+        const res = await fetch('/api/visual-config');
+        const data = await res.json();
+        applyVisualConfig(data && data.visual_config ? data.visual_config : null);
+      } catch (_) {}
+    }
+
+    function projectPerson(person) {
+      const width = viewport.width;
+      const height = viewport.height;
+      const cfg = state.visualConfig;
+      const u = clamp(person.displayU, 0, 1);
+      const vRaw = clamp(person.displayV, 0, 1);
+      const v = cfg.flip_depth ? 1 - vRaw : vRaw;
+      const worldX = (u - 0.5) * cfg.room_width_m;
+      const worldZ = cfg.min_depth_m + v * (cfg.max_depth_m - cfg.min_depth_m);
+      const focal = (width * 0.5) / Math.tan((cfg.fov_deg * Math.PI / 180) * 0.5);
+      const horizonY = height * 0.52;
+      const centerX = width * 0.5;
+      const feetY = horizonY + focal * (state.cameraHeightM / worldZ) + cfg.bottom_offset_px;
+      const bodyHeightM = cfg.person_height_m * cfg.height_scale;
+      const bodyWidthM = cfg.person_width_m * cfg.width_scale;
+      const headY = horizonY + focal * ((state.cameraHeightM - bodyHeightM) / worldZ) + cfg.bottom_offset_px;
+      const centerPx = centerX + focal * (worldX / worldZ) + cfg.offset_x_px;
+      const rectWidth = Math.max(8, focal * (bodyWidthM / worldZ));
+      const rectHeight = Math.max(12, feetY - headY);
+      return {
+        depth: worldZ,
+        centerPx,
+        headY: headY + cfg.offset_y_px,
+        feetY: feetY + cfg.offset_y_px,
+        rectWidth,
+        rectHeight,
+      };
+    }
+
+    function updatePersonPlayback(person) {
+      ensurePersonResources(person);
+      const now = performance.now();
+      const motionPx = Math.max(
+        0,
+        Number.isFinite(person.smoothedScreenSpeed) ? person.smoothedScreenSpeed : 0,
+        Number.isFinite(person.instantScreenSpeed) ? person.instantScreenSpeed * 0.9 : 0,
+        Number.isFinite(person.smoothedNormalizedSpeed) ? person.smoothedNormalizedSpeed * 520 : 0,
+        Number.isFinite(person.instantNormalizedSpeed) ? person.instantNormalizedSpeed * 240 : 0,
+      );
+      if (motionPx > 1.1) {
+        person.lastMotionAt = now;
+      }
+      const shouldPlay = (now - (person.lastMotionAt || 0)) < 260;
+      const activeSpeed = clamp((motionPx - 0.8) / 95, 0, 1);
+      const playbackRate = shouldPlay ? clamp(0.22 + activeSpeed * 1.78, 0.22, 2.0) : 0;
+      person.playbackRate = playbackRate;
+
+      if (playbackRate <= 0) {
+        try { person.video.pause(); } catch (_) {}
+        return;
+      }
+
+      person.video.playbackRate = playbackRate;
+      if (person.video.paused) {
+        person.video.muted = true;
+        person.video.play().catch(() => {});
+      }
+    }
+
+    function emitTrailParticles(projectedBodies, timeMs, deltaSec) {
+      if (currentParticleCount <= 0 || !projectedBodies.length) return;
+      const densityScale = clamp(Math.sqrt(Math.max(1, currentParticleCount) / 260), 0.65, 10);
+      for (const body of projectedBodies) {
+        const speed = Number.isFinite(body.speed) ? body.speed : 0;
+        if (speed < 18) {
+          body.person.emitCarry = 0;
+          continue;
+        }
+        const particlesPerSecond = clamp((8 + speed * 0.05) * densityScale, 0, 420);
+        const carry = (body.person.emitCarry || 0) + particlesPerSecond * deltaSec;
+        const emitCount = Math.min(96, Math.floor(carry));
+        body.person.emitCarry = carry - emitCount;
+        for (let n = 0; n < emitCount; n += 1) {
+          const slot = allocateParticleSlot();
+          spawnTrailParticle(slot, body, timeMs + n * 11.37);
+        }
+      }
+    }
+
+    function updateParticles(timeMs, projectedBodies, deltaSec) {
+      if (!particles || !particles.visible || currentParticleCount <= 0) return;
+      const width = viewport.width;
+      const height = viewport.height;
+      const speedMul = Math.max(0, state.visualConfig.particles_speed || 1.0);
+      const baseSize = Math.max(0.2, state.visualConfig.particles_size_px || 3.2);
+      const baseOpacity = clamp(state.visualConfig.particles_opacity || 0.3, 0, 1);
+      const preset = state.visualConfig.particles_preset === 'flow' ? 'flow' : 'classic';
+      emitTrailParticles(projectedBodies, timeMs, deltaSec);
+
+      for (let i = 0; i < currentParticleCount; i += 1) {
+        const idx = i * 3;
+        const cidx = i * 3;
+        if (particleLife[i] <= 0) continue;
+        let px = particlePositions[idx + 0];
+        let py = particlePositions[idx + 1];
+        const seed = particleSeeds[i];
+        const maxLife = Math.max(0.001, particleMaxLife[i]);
+        const lifeNorm = clamp(particleLife[i] / maxLife, 0, 1);
+        const flowX = Math.sin(py * 0.009 + timeMs * 0.0011 + seed * 0.8) + Math.cos((px - py) * 0.0044 - timeMs * 0.0007 + seed * 1.4);
+        const flowY = Math.cos(px * 0.007 + timeMs * 0.00084 + seed * 1.1) - Math.sin((px + py) * 0.0035 + timeMs * 0.00062 + seed * 0.6);
+        const ribbon = Math.sin((px + py) * 0.003 + timeMs * 0.0018 + seed * 2.0);
+        const swirlStrength = preset === 'flow' ? 120 : 64;
+        const baseField = preset === 'flow' ? 86 : 48;
+
+        particleVelocityX[i] += (flowX * baseField + ribbon * swirlStrength * particleSpin[i]) * deltaSec * speedMul;
+        particleVelocityY[i] += (flowY * baseField + Math.cos(timeMs * 0.001 + seed) * 28 + ribbon * 22) * deltaSec * speedMul;
+
+        for (const body of projectedBodies) {
+          const wakeX = px - body.centerX;
+          const wakeY = py - body.centerY;
+          const wakeRadius = Math.max(body.drawHeight * 0.75, body.drawWidth * 1.2, 90);
+          const dist = Math.hypot(wakeX, wakeY);
+          if (dist < wakeRadius) {
+            const falloff = 1 - (dist / wakeRadius);
+            const bodySpeedNorm = clamp(body.speed / 850, 0, 1.8);
+            const motionLen = Math.max(1, Math.hypot(body.velocityX, body.velocityY));
+            const trailX = -body.velocityX / motionLen;
+            const trailY = -body.velocityY / motionLen;
+            const tangentX = -trailY * body.swirl;
+            const tangentY = trailX * body.swirl;
+            const orbit = Math.sin(seed * 3.0 + timeMs * 0.0016 + dist * 0.01) * (preset === 'flow' ? 1.0 : 0.55);
+            particleVelocityX[i] += (trailX * (45 + bodySpeedNorm * 140) + tangentX * (22 + bodySpeedNorm * 56) * orbit) * falloff * deltaSec;
+            particleVelocityY[i] += (trailY * (45 + bodySpeedNorm * 140) + tangentY * (22 + bodySpeedNorm * 56) * orbit) * falloff * deltaSec;
+          }
+        }
+
+        particleVelocityY[i] += (preset === 'flow' ? 26 : 14) * deltaSec * speedMul;
+        const drag = Math.pow(clamp(particleDrag[i], 0.8, 0.999), deltaSec * 60);
+        particleVelocityX[i] *= drag;
+        particleVelocityY[i] *= drag;
+        px += particleVelocityX[i] * deltaSec * speedMul;
+        py += particleVelocityY[i] * deltaSec * speedMul;
+        particleLife[i] -= deltaSec * (preset === 'flow' ? 1.0 : 1.18) * clamp(0.75 + speedMul * 0.3, 0.6, 3.2);
+
+        const speed = Math.hypot(particleVelocityX[i], particleVelocityY[i]);
+        const speedNorm = clamp(speed / 210, 0, 2.5);
+        const whiteMix = clamp((speedNorm - 0.45) / 1.55, 0, 0.86);
+        const endFade = clamp(lifeNorm / 0.28, 0, 1);
+        const visibility = 0.9 + endFade * 0.7;
+        particleSizes[i] = Math.max(1.6, baseSize * (preset === 'flow' ? (1.05 + speedNorm * 1.35) : (0.9 + speedNorm * 0.92)) * visibility);
+        particleAlphas[i] = clamp(baseOpacity * (0.82 + endFade * 0.42 + speedNorm * 0.35), 0.2, 1.0);
+        const warmR = clamp(1.0 + speedNorm * 0.18, 0, 1.4);
+        const warmG = preset === 'flow' ? clamp(0.42 + speedNorm * 0.42, 0, 1.3) : clamp(0.34 + speedNorm * 0.24, 0, 1.0);
+        const warmB = preset === 'flow' ? clamp(0.10 + speedNorm * 0.22, 0, 0.9) : clamp(0.05 + speedNorm * 0.08, 0, 0.4);
+        const glow = 0.72 + endFade * 0.34;
+        particleColors[cidx + 0] = (warmR + (1.25 - warmR) * whiteMix) * glow;
+        particleColors[cidx + 1] = (warmG + (1.20 - warmG) * whiteMix) * glow;
+        particleColors[cidx + 2] = (warmB + (1.18 - warmB) * whiteMix) * glow;
+
+        const limitX = (width * 0.5) + 220;
+        const limitY = (height * 0.5) + 220;
+        if (px < -limitX || px > limitX || py < -limitY || py > limitY || particleLife[i] <= 0) {
+          deactivateParticle(i);
+        } else {
+          particlePositions[idx + 0] = px;
+          particlePositions[idx + 1] = py;
+          particlePositions[idx + 2] = -28 - speedNorm * 7 - (1 - lifeNorm) * 8;
+        }
+      }
+      particleGeometry.attributes.position.needsUpdate = true;
+      particleGeometry.attributes.aSize.needsUpdate = true;
+      particleGeometry.attributes.aAlpha.needsUpdate = true;
+      particleGeometry.attributes.aColor.needsUpdate = true;
+    }
+
+    function connect() {
+      const scheme = location.protocol === 'https:' ? 'wss' : 'ws';
+      const ws = new WebSocket(`${scheme}://${location.host}/ws/positions`);
+      state.ws = ws;
+
+      ws.onclose = () => {
+        setTimeout(connect, 1500);
+      };
+
+      ws.onerror = () => {
+        try { ws.close(); } catch (_) {}
+      };
+
+      ws.onmessage = (event) => {
+        let msg;
+        try {
+          msg = JSON.parse(event.data);
+        } catch {
+          return;
+        }
+        if (msg.type !== 'positions') return;
+
+        state.planeReady = !!msg.plane_ready;
+        if (typeof msg.camera_height_m === 'number' && Number.isFinite(msg.camera_height_m)) {
+          state.cameraHeightM = Math.max(0.1, msg.camera_height_m);
+        }
+        applyVisualConfig(msg.visual_config || null);
+
+        const incomingIds = new Set();
+        const now = performance.now();
+        for (const payload of msg.people || []) {
+          const id = Number(payload.id ?? 0);
+          incomingIds.add(id);
+          const person = state.people.get(id) || {
+            id,
+            displayU: typeof payload.u === 'number' ? payload.u : 0.5,
+            displayV: typeof payload.v === 'number' ? payload.v : 0.5,
+            targetU: typeof payload.u === 'number' ? payload.u : 0.5,
+            targetV: typeof payload.v === 'number' ? payload.v : 0.5,
+            lastSeen: now,
+            lastUpdateAt: now,
+            smoothedSpeed: 0,
+            instantNormalizedSpeed: 0,
+            smoothedNormalizedSpeed: 0,
+            directionX: 1,
+            playbackRate: 0,
+            lastMotionAt: 0,
+            emitCarry: 0,
+            instantScreenSpeed: 0,
+            smoothedScreenSpeed: 0,
+            lastScreenX: null,
+            lastScreenY: null,
+            lastScreenAt: 0,
+            video: null,
+            texture: null,
+            material: null,
+            mesh: null,
+          };
+
+          const nextU = typeof payload.u === 'number' ? payload.u : person.targetU;
+          const nextV = typeof payload.v === 'number' ? payload.v : person.targetV;
+          const dt = Math.max(0.016, (now - person.lastUpdateAt) / 1000);
+          const deltaU = nextU - person.targetU;
+          const deltaV = nextV - person.targetV;
+          const normalizedSpeed = Math.hypot(deltaU, deltaV) / dt;
+          person.instantNormalizedSpeed = normalizedSpeed;
+          person.smoothedNormalizedSpeed += (normalizedSpeed - person.smoothedNormalizedSpeed) * 0.5;
+          person.smoothedSpeed += (normalizedSpeed - person.smoothedSpeed) * 0.35;
+          if (Math.abs(deltaU) > 0.0008) person.directionX = deltaU < 0 ? -1 : 1;
+          person.lastUpdateAt = now;
+          person.targetU = nextU;
+          person.targetV = nextV;
+          person.lastSeen = now;
+          ensurePersonResources(person);
+          state.people.set(id, person);
+        }
+
+        for (const [id, person] of state.people) {
+          if (!incomingIds.has(id) && now - person.lastSeen > 700) {
+            disposePersonResources(person);
+            state.people.delete(id);
+          }
+        }
+      };
+    }
+
+    function animate(timeMs) {
+      const deltaSec = state.lastFrameAtMs > 0 ? clamp((timeMs - state.lastFrameAtMs) / 1000, 0.001, 0.05) : (1 / 60);
+      state.lastFrameAtMs = timeMs;
+      const now = performance.now();
+      const projectedBodies = [];
+
+      for (const [id, person] of state.people) {
+        if (now - person.lastSeen > 1600) {
+          disposePersonResources(person);
+          state.people.delete(id);
+          continue;
+        }
+
+        if (!state.planeReady) {
+          if (person.mesh) person.mesh.visible = false;
+          continue;
+        }
+
+        const alpha = Math.min(0.24, (now - person.lastSeen) < 180 ? 0.18 : 0.08);
+        person.displayU += (person.targetU - person.displayU) * alpha;
+        person.displayV += (person.targetV - person.displayV) * alpha;
+
+        const projected = projectPerson(person);
+        const video = person.video;
+        const mesh = person.mesh;
+        if (!video || !mesh || video.readyState < 2 || !video.videoWidth || !video.videoHeight) {
+          if (mesh) mesh.visible = false;
+          continue;
+        }
+
+        const fitScale = Math.min(
+          projected.rectWidth / video.videoWidth,
+          projected.rectHeight / video.videoHeight,
+        );
+        const mediaScale = Math.max(0.1, state.visualConfig.media_scale || 1);
+        const drawWidth = Math.max(1, video.videoWidth * fitScale * mediaScale);
+        const drawHeight = Math.max(1, video.videoHeight * fitScale * mediaScale);
+        const drawX = projected.centerPx - drawWidth * 0.5;
+        const drawY = projected.feetY - drawHeight;
+        const centerY = drawY + drawHeight * 0.5;
+        const screenCenterX = drawX + drawWidth * 0.5 - viewport.width * 0.5;
+        const screenCenterY = viewport.height * 0.5 - centerY;
+        const screenDt = person.lastScreenAt ? Math.max(0.016, (now - person.lastScreenAt) / 1000) : (1 / 60);
+        const previousX = Number.isFinite(person.lastScreenX) ? person.lastScreenX : screenCenterX;
+        const previousY = Number.isFinite(person.lastScreenY) ? person.lastScreenY : screenCenterY;
+        const velocityX = (screenCenterX - previousX) / screenDt;
+        const velocityY = (screenCenterY - previousY) / screenDt;
+        const screenSpeed = Math.hypot(velocityX, velocityY);
+        person.instantScreenSpeed = screenSpeed;
+        person.smoothedScreenSpeed += (screenSpeed - person.smoothedScreenSpeed) * 0.42;
+        person.lastScreenX = screenCenterX;
+        person.lastScreenY = screenCenterY;
+        person.lastScreenAt = now;
+        updatePersonPlayback(person);
+
+        projectedBodies.push({
+          person,
+          centerX: screenCenterX,
+          centerY: screenCenterY,
+          drawWidth,
+          drawHeight,
+          swirl: person.directionX < 0 ? -1 : 1,
+          velocityX,
+          velocityY,
+          speed: screenSpeed,
+        });
+
+        mesh.visible = true;
+        mesh.position.x = screenCenterX;
+        mesh.position.y = screenCenterY;
+        mesh.position.z = -projected.depth;
+        mesh.scale.x = (person.directionX < 0 ? -1 : 1) * drawWidth;
+        mesh.scale.y = drawHeight;
+        mesh.renderOrder = 1000 - projected.depth;
+      }
+
+      updateParticles(timeMs || 0, projectedBodies, deltaSec);
+
+      renderer.render(scene, camera);
+      requestAnimationFrame(animate);
+    }
+
+    rebuildParticles();
+    loadVisualConfig();
+    connect();
+    requestAnimationFrame(animate);
+  </script>
+</body>
+</html>

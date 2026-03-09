@@ -1,0 +1,1041 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tracking Audiencia</title>
+  <style>
+    /* ── Reset & base ────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:        #0d0d0d;
+      --bg2:       #161616;
+      --bg3:       #1e1e1e;
+      --border:    #2a2a2a;
+      --accent:    #00ff88;
+      --accent2:   #00c8ff;
+      --danger:    #ff4444;
+      --warn:      #ffaa00;
+      --txt:       #e8e8e8;
+      --txt2:      #888;
+      --panel:     280px;
+      --radius:    8px;
+      --font:      'Segoe UI', system-ui, sans-serif;
+    }
+    html, body {
+      height: 100%; background: var(--bg); color: var(--txt);
+      font-family: var(--font); overflow: hidden;
+    }
+
+    /* ── Layout ──────────────────────────────────────────────── */
+    .app {
+      display: grid;
+      grid-template-columns: 1fr var(--panel);
+      grid-template-rows: 44px 1fr;
+      height: 100vh;
+      gap: 0;
+    }
+
+    /* ── Header ──────────────────────────────────────────────── */
+    header {
+      grid-column: 1 / -1;
+      display: flex; align-items: center; gap: 14px;
+      padding: 0 18px;
+      background: var(--bg2);
+      border-bottom: 1px solid var(--border);
+    }
+    header .logo {
+      font-size: 13px; font-weight: 700; letter-spacing: 2px;
+      color: var(--accent); text-transform: uppercase;
+    }
+    header .sep { flex: 1; }
+    .pill {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 3px 10px; border-radius: 20px;
+      font-size: 12px; font-weight: 600;
+      border: 1px solid;
+    }
+    .pill.mode-menu      { color: var(--txt2);   border-color: #333; }
+    .pill.mode-calibrando{ color: var(--warn);   border-color: var(--warn);   background: #2a1f00; }
+    .pill.mode-tracking  { color: var(--accent); border-color: var(--accent); background: #002a18; }
+    .pill .dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: currentColor; animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse {
+      0%,100% { opacity:1; } 50% { opacity:0.3; }
+    }
+
+    /* ── Video area ──────────────────────────────────────────── */
+    .video-wrap {
+      position: relative; overflow: hidden; background: #000;
+    }
+    #stream {
+      width: 100%; height: 100%; object-fit: contain;
+      display: block; user-select: none;
+    }
+    /* El cursor del video-wrap cambia según el modo */
+    #video-wrap.calib-cursor { cursor: crosshair; }
+    #video-wrap:not(.calib-cursor) { cursor: default; }
+
+    /* ── SVG overlay zone points ─────────────────────────────── */
+    #zone-svg {
+      position: absolute; inset: 0; pointer-events: none;
+      width: 100%; height: 100%;
+    }
+    .zone-poly {
+      fill: rgba(0,255,136,0.08);
+      stroke: #00ff88; stroke-width: 2;
+      stroke-dasharray: 6 4;
+    }
+    .zone-pt {
+      fill: #00c8ff; stroke: #fff; stroke-width: 1.5;
+      cursor: pointer; pointer-events: all;
+    }
+
+    /* ── Panel lateral ───────────────────────────────────────── */
+    .panel {
+      background: var(--bg2);
+      border-left: 1px solid var(--border);
+      overflow-y: auto;
+      display: flex; flex-direction: column; gap: 0;
+    }
+    .section {
+      padding: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .section-title {
+      font-size: 10px; font-weight: 700; letter-spacing: 1.5px;
+      text-transform: uppercase; color: var(--txt2);
+      margin-bottom: 12px;
+    }
+
+    /* ── Stats ───────────────────────────────────────────────── */
+    .stat-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+    }
+    .stat-box {
+      background: var(--bg3); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 10px 12px;
+    }
+    .stat-label { font-size: 10px; color: var(--txt2); margin-bottom: 4px; }
+    .stat-value { font-size: 26px; font-weight: 700; color: var(--accent); line-height:1; }
+    .stat-value.small { font-size: 13px; color: var(--txt); word-break:break-all; }
+
+    /* ── Fuente ──────────────────────────────────────────────── */
+    .source-options { display: flex; flex-direction: column; gap: 6px; }
+    .source-btn {
+      display: flex; align-items: center; gap: 10px;
+      padding: 9px 12px; border-radius: var(--radius);
+      border: 1px solid var(--border); background: var(--bg3);
+      color: var(--txt); font-size: 13px; cursor: pointer;
+      transition: border-color .15s, background .15s;
+      width: 100%; text-align: left;
+    }
+    .source-btn:hover  { border-color: var(--accent2); background: #0d1f2a; }
+    .source-btn.active { border-color: var(--accent);  background: #002a18; color: var(--accent); }
+    .source-btn .icon  { font-size: 16px; flex-shrink: 0; }
+    .source-btn .lbl   { flex: 1; font-weight: 600; }
+    .source-btn .sub   { font-size: 10px; color: var(--txt2); margin-top: 1px; }
+
+    /* ── Upload drag & drop ──────────────────────────────────── */
+    #drop-zone {
+      border: 2px dashed var(--border); border-radius: var(--radius);
+      padding: 16px; text-align: center;
+      color: var(--txt2); font-size: 12px; cursor: pointer;
+      transition: border-color .2s, background .2s;
+    }
+    #drop-zone:hover, #drop-zone.drag-over {
+      border-color: var(--accent2); background: #0d1f2a; color: var(--txt);
+    }
+    #drop-zone .icon { font-size: 22px; margin-bottom: 6px; }
+    #file-input { display: none; }
+
+    /* ── Botones de zona ─────────────────────────────────────── */
+    .btn-row { display: flex; gap: 8px; }
+    .btn {
+      flex: 1; padding: 9px 10px; border-radius: var(--radius);
+      border: 1px solid var(--border); background: var(--bg3);
+      color: var(--txt); font-size: 12px; font-weight: 600;
+      cursor: pointer; transition: all .15s; text-align: center;
+    }
+    .btn:hover           { filter: brightness(1.3); }
+    .btn.primary         { border-color: var(--accent); color: var(--accent); background: #002a18; }
+    .btn.danger          { border-color: var(--danger); color: var(--danger); background: #2a0000; }
+    .btn:disabled        { opacity: .35; cursor: not-allowed; }
+
+    /* ── Info calibración ────────────────────────────────────── */
+    .calib-info {
+      background: var(--bg3); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 10px 12px;
+      font-size: 12px; color: var(--txt2); line-height: 1.6;
+    }
+    .calib-info b { color: var(--accent); }
+    #pt-count { color: var(--accent); font-weight: 700; }
+
+    /* ── Toast ───────────────────────────────────────────────── */
+    #toast {
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+      background: var(--bg3); border: 1px solid var(--border);
+      padding: 10px 20px; border-radius: 20px;
+      font-size: 13px; font-weight: 600;
+      opacity: 0; transition: opacity .3s;
+      pointer-events: none; z-index: 100;
+    }
+    #toast.show { opacity: 1; }
+
+    /* ── Webcam list ─────────────────────────────────────────── */
+    #webcam-list { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+
+    /* ── Scrollbar ───────────────────────────────────────────── */
+    ::-webkit-scrollbar      { width: 5px; }
+    ::-webkit-scrollbar-track{ background: var(--bg2); }
+    ::-webkit-scrollbar-thumb{ background: var(--border); border-radius: 3px; }
+  </style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ── Header ── -->
+  <header>
+    <span class="logo">● Tracking Audiencia</span>
+    <span class="sep"></span>
+    <span class="pill mode-menu" id="mode-pill">
+      <span class="dot"></span>
+      <span id="mode-label">Iniciando…</span>
+    </span>
+  </header>
+
+  <!-- ── Video + canvas overlay ── -->
+  <div class="video-wrap" id="video-wrap">
+    <img id="stream" src="/video_feed" alt="stream" draggable="false" />
+    <svg id="zone-svg" xmlns="http://www.w3.org/2000/svg"></svg>
+  </div>
+
+  <!-- ── Panel lateral ── -->
+  <aside class="panel">
+
+    <!-- Stats -->
+    <div class="section">
+      <div class="section-title">En tiempo real</div>
+      <div class="stat-grid">
+        <div class="stat-box">
+          <div class="stat-label">Personas en zona</div>
+          <div class="stat-value" id="stat-persons">—</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">FPS</div>
+          <div class="stat-value" id="stat-fps" style="color:var(--accent2)">—</div>
+        </div>
+      </div>
+      <div style="margin-top:8px;display:flex;gap:6px;align-items:center;">
+        <div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:6px 10px;font-size:11px;color:var(--accent2);font-weight:700;flex:1;" id="stat-model">—</div>
+        <div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:6px 10px;font-size:11px;color:var(--txt2);" id="stat-tracker">ByteTrack</div>
+        <div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:6px 10px;font-size:11px;color:var(--txt2);" id="stat-source-sm">—</div>
+      </div>
+    </div>
+
+    <!-- Fuente -->
+    <div class="section">
+      <div class="section-title">Fuente de video</div>
+      <div class="source-options">
+
+        <button class="source-btn" id="btn-tapo" onclick="selectSource('tapo')">
+          <span class="icon">📡</span>
+          <div>
+            <div class="lbl">Cámara Tapo</div>
+            <div class="sub">RTSP — 192.168.0.96</div>
+          </div>
+        </button>
+
+        <button class="source-btn" id="btn-webcam" onclick="toggleWebcams()">
+          <span class="icon">🎥</span>
+          <div>
+            <div class="lbl">Webcam</div>
+            <div class="sub">Escanear en servidor</div>
+          </div>
+        </button>
+
+        <button class="source-btn" id="btn-simulate" onclick="toggleSimulation()">
+          <span class="icon">🧍</span>
+          <div>
+            <div class="lbl">Simular personas</div>
+            <div class="sub" id="sim-status-sub">Servidor envía posiciones fake</div>
+          </div>
+        </button>
+        <div id="webcam-list" style="display:none"></div>
+
+        <div style="display:flex;flex-direction:column;gap:6px;margin-top:4px">
+          <input id="custom-source" placeholder="RTSP / URL / índice (ej: 0)"
+            style="width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--txt);
+                   border-radius:var(--radius);padding:8px 10px;font-size:12px;outline:none" />
+          <button class="btn" onclick="applyCustomSource()">Aplicar fuente manual</button>
+        </div>
+
+        <!-- Drop zone -->
+        <div id="drop-zone" onclick="document.getElementById('file-input').click()">
+          <div class="icon">🎞</div>
+          <div>Arrastrá un video aquí</div>
+          <div style="font-size:10px;margin-top:4px;color:var(--txt2)">o hacé clic para elegir archivo</div>
+        </div>
+        <input type="file" id="file-input" accept="video/*" />
+
+      </div>
+    </div>
+
+    <!-- Modelo -->
+    <div class="section">
+      <div class="section-title">Modelo YOLO</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px" id="model-grid">
+        <button class="btn" id="mdl-yolo11n" onclick="setModel('yolo11n.pt')" title="~80 FPS — más rápido">11n<br><span style="font-size:9px;color:var(--txt2)">~80 FPS</span></button>
+        <button class="btn" id="mdl-yolo11s" onclick="setModel('yolo11s.pt')" title="~55 FPS">11s<br><span style="font-size:9px;color:var(--txt2)">~55 FPS</span></button>
+        <button class="btn primary" id="mdl-yolo11m" onclick="setModel('yolo11m.pt')" title="~40 FPS — recomendado">11m<br><span style="font-size:9px">~40 FPS ★</span></button>
+        <button class="btn" id="mdl-yolo11l" onclick="setModel('yolo11l.pt')" title="~25 FPS — más preciso">11l<br><span style="font-size:9px;color:var(--txt2)">~25 FPS</span></button>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span style="font-size:11px;color:var(--txt2);white-space:nowrap">Res. inferencia</span>
+        <select id="imgsz-select" onchange="setImgsz(this.value)"
+          style="flex:1;background:var(--bg3);border:1px solid var(--border);color:var(--txt);
+                 border-radius:var(--radius);padding:5px 8px;font-size:12px;cursor:pointer">
+          <option value="480">480 px — más rápido</option>
+          <option value="640" selected>640 px — balance</option>
+          <option value="960">960 px — más preciso</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Calibración: zona + plano -->
+    <div class="section">
+      <div class="section-title">Calibración espacial</div>
+      <div class="calib-info">
+        <b>Modo edición:</b> <span id="edit-mode-label">Zona detección</span><br>
+        Zona (>=3): <span id="pt-count">0</span> | Plano (4): <span id="plane-pt-count">0</span><br>
+        Plano listo: <span id="plane-ready">No</span>
+      </div>
+      <div class="btn-row" style="margin-top:10px">
+        <button class="btn primary" id="btn-edit-zone" onclick="setEditMode('zone')">Editar zona</button>
+        <button class="btn" id="btn-edit-plane" onclick="setEditMode('plane')">Editar plano</button>
+      </div>
+      <div class="btn-row" style="margin-top:10px">
+        <button class="btn" id="btn-undo" onclick="undoPoint()">↩ Deshacer zona</button>
+        <button class="btn primary" id="btn-confirm" onclick="confirmZone()">✓ Confirmar zona</button>
+      </div>
+      <div class="btn-row" style="margin-top:8px">
+        <button class="btn danger" onclick="resetZone()">✕ Reiniciar zona</button>
+      </div>
+      <div class="btn-row" style="margin-top:8px">
+        <button class="btn" onclick="undoPlanePoint()">↩ Deshacer plano</button>
+        <button class="btn primary" onclick="confirmPlane()">✓ Confirmar plano</button>
+      </div>
+      <div class="btn-row" style="margin-top:8px">
+        <button class="btn danger" onclick="resetPlane()">✕ Reiniciar plano</button>
+      </div>
+      <div class="btn-row" style="margin-top:8px">
+        <label class="btn" style="display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;">
+          <input type="checkbox" id="mirror-toggle" onchange="toggleMirror(this.checked)" />
+          Espejo horizontal
+        </label>
+      </div>
+      <div class="btn-row" style="margin-top:8px">
+        <a class="btn" href="/content.html" target="_blank" rel="noopener">Abrir página de contenido</a>
+        <a class="btn" href="/visual.html" target="_blank" rel="noopener">Abrir visual LED</a>
+        <a class="btn" href="/fullscreen" target="_blank" rel="noopener">Abrir fullscreen</a>
+        <a class="btn" href="/fullscreen2" target="_blank" rel="noopener">Abrir fullscreen2</a>
+      </div>
+      <div class="calib-info" style="margin-top:10px">
+        <b>Auto plano con ArUco</b><br>
+        Marker ID: <input id="aruco-id" type="number" min="0" max="49" value="0"
+          style="width:64px;background:var(--bg2);border:1px solid var(--border);color:var(--txt);border-radius:6px;padding:3px 6px;margin:0 6px" />
+        Lado (mm): <input id="aruco-mm" type="number" min="20" value="120"
+          style="width:78px;background:var(--bg2);border:1px solid var(--border);color:var(--txt);border-radius:6px;padding:3px 6px;margin-left:6px" />
+        Altura cámara (cm): <input id="cam-height-cm" type="number" min="20" value="94"
+          style="width:78px;background:var(--bg2);border:1px solid var(--border);color:var(--txt);border-radius:6px;padding:3px 6px;margin-left:6px" />
+        <br><span id="aruco-status" style="font-size:11px;color:var(--txt2)">Aruco inactivo</span>
+        <br><span id="aruco-quality" style="font-size:11px;color:var(--txt2)">Calidad: 0/100 (rojo)</span>
+      </div>
+      <div class="btn-row" style="margin-top:8px">
+        <button class="btn" onclick="openArucoPage()">Abrir marcador</button>
+        <button class="btn" onclick="saveMarkerSpec()">Guardar spec</button>
+      </div>
+      <div class="btn-row" style="margin-top:8px">
+        <button class="btn" onclick="saveCameraHeight()">Guardar altura cámara</button>
+      </div>
+      <div class="btn-row" style="margin-top:8px">
+        <button class="btn" onclick="startAutoPlane()">Iniciar auto</button>
+        <button class="btn primary" onclick="confirmAutoPlane()">Confirmar auto</button>
+      </div>
+      <div class="btn-row" style="margin-top:8px">
+        <button class="btn danger" onclick="stopAutoPlane()">Detener auto</button>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Pantalla LED (Screen)</div>
+      <div class="calib-info">
+        X (m): <input id="screen-x" type="number" step="0.1" value="0"
+          style="width:68px;background:var(--bg2);border:1px solid var(--border);color:var(--txt);border-radius:6px;padding:3px 6px;margin:0 6px" />
+        Z (m): <input id="screen-z" type="number" step="0.1" value="1.2"
+          style="width:68px;background:var(--bg2);border:1px solid var(--border);color:var(--txt);border-radius:6px;padding:3px 6px;margin:0 6px" />
+        Yaw (°): <input id="screen-yaw" type="number" step="1" value="0"
+          style="width:68px;background:var(--bg2);border:1px solid var(--border);color:var(--txt);border-radius:6px;padding:3px 6px;margin-left:6px" />
+        <br>
+        Width (m): <input id="screen-w" type="number" step="0.1" value="3.5"
+          style="width:78px;background:var(--bg2);border:1px solid var(--border);color:var(--txt);border-radius:6px;padding:3px 6px;margin:0 6px" />
+        Height (m): <input id="screen-h" type="number" step="0.1" value="2.0"
+          style="width:78px;background:var(--bg2);border:1px solid var(--border);color:var(--txt);border-radius:6px;padding:3px 6px;margin:0 6px" />
+      </div>
+      <div class="btn-row" style="margin-top:8px">
+        <label class="btn" style="display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;">
+          <input type="checkbox" id="screen-enabled" checked />
+          Screen visible
+        </label>
+        <button class="btn primary" onclick="saveScreenConfig()">Guardar screen</button>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Cámara compartida (/content)</div>
+      <div class="calib-info">
+        Yaw (°): <input id="view-cam-yaw" type="number" step="0.1" value="45"
+          style="width:72px;background:var(--bg2);border:1px solid var(--border);color:var(--txt);border-radius:6px;padding:3px 6px;margin:0 6px" />
+        Pitch (°): <input id="view-cam-pitch" type="number" step="0.1" value="37.2"
+          style="width:72px;background:var(--bg2);border:1px solid var(--border);color:var(--txt);border-radius:6px;padding:3px 6px;margin:0 6px" />
+        Dist (m): <input id="view-cam-dist" type="number" step="0.1" value="4.6"
+          style="width:72px;background:var(--bg2);border:1px solid var(--border);color:var(--txt);border-radius:6px;padding:3px 6px;margin-left:6px" />
+        <br>
+        Target X: <input id="view-target-x" type="number" step="0.1" value="0"
+          style="width:72px;background:var(--bg2);border:1px solid var(--border);color:var(--txt);border-radius:6px;padding:3px 6px;margin:0 6px" />
+        Y: <input id="view-target-y" type="number" step="0.1" value="0.25"
+          style="width:72px;background:var(--bg2);border:1px solid var(--border);color:var(--txt);border-radius:6px;padding:3px 6px;margin:0 6px" />
+        Z: <input id="view-target-z" type="number" step="0.1" value="0"
+          style="width:72px;background:var(--bg2);border:1px solid var(--border);color:var(--txt);border-radius:6px;padding:3px 6px;margin-left:6px" />
+      </div>
+      <div class="btn-row" style="margin-top:8px">
+        <button class="btn primary" onclick="saveSharedViewConfig()">Guardar cámara compartida</button>
+      </div>
+    </div>
+
+    <!-- Confianza -->
+    <div class="section">
+      <div class="section-title">Detección</div>
+      <div class="calib-info" style="margin-bottom:10px">
+        <b>Confianza mínima:</b> <span id="conf-val">35%</span><br>
+        <span style="font-size:10px">Subila si hay falsos positivos</span>
+      </div>
+      <input type="range" id="conf-slider" min="5" max="85" value="35"
+        style="width:100%;accent-color:var(--accent);cursor:pointer"
+        oninput="onConfChange(this.value)" onchange="sendConf(this.value)" />
+      <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--txt2);margin-top:2px">
+        <span>5% — más detección</span><span>85% — más preciso</span>
+      </div>
+      <div class="btn-row" style="margin-top:10px">
+        <button class="btn" onclick="setPerfProfile('balanced')">Balanced</button>
+        <button class="btn primary" onclick="setPerfProfile('turbo')">Turbo 3090</button>
+      </div>
+    </div>
+
+    <!-- Atajos -->
+    <div class="section" style="border-bottom:none; flex:1">
+      <div class="section-title">Atajos</div>
+      <div class="calib-info">
+        <b>Clic en video</b> → agregar punto<br>
+        <b>Editar zona</b> → filtro detección<br>
+        <b>Editar plano</b> → coordenadas espaciales<br>
+        <b>Contenido</b> → abrir /content.html
+      </div>
+    </div>
+
+  </aside>
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<script>
+// ── WebSocket ───────────────────────────────────────────────────────────────
+let ws;
+let frameW = 1280, frameH = 720;
+let zonePoints = [];   // coords en espacio de frame
+let planePoints = [];
+let calibMode = true;  // true por defecto hasta recibir estado del servidor
+let wsReady = false;
+let editMode = "zone";
+
+function connectWS() {
+  const wsProto = location.protocol === "https:" ? "wss" : "ws";
+  ws = new WebSocket(`${wsProto}://${location.host}/ws`);
+  ws.onopen = () => {
+    wsReady = true;
+    ws.send(JSON.stringify({ action: "get_zone" }));
+  };
+  ws.onmessage = (e) => {
+    const msg = JSON.parse(e.data);
+    if (msg.type === "stats") handleStats(msg);
+    else if (msg.type === "zone") handleZone(msg);
+    else if (msg.type === "aruco") handleAruco(msg);
+    else if (msg.type === "ack") handleAck(msg);
+  };
+  ws.onclose = () => {
+    wsReady = false;
+    setTimeout(connectWS, 2000);
+  };
+}
+
+function send(obj) {
+  if (wsReady) ws.send(JSON.stringify(obj));
+}
+
+// ── Stats ────────────────────────────────────────────────────────────────────
+function handleStats(msg) {
+  document.getElementById("stat-persons").textContent =
+    (msg.mode === "TRACKING" || msg.simulation_enabled) ? (msg.personas ?? "0") : "—";
+  document.getElementById("stat-fps").textContent =
+    msg.fps > 0 ? msg.fps + " fps" : "—";
+  if (msg.fps > 0) {
+    const el = document.getElementById("stat-fps");
+    el.style.color = msg.fps >= 30 ? "var(--accent)" : msg.fps >= 15 ? "var(--warn)" : "var(--danger)";
+  }
+  document.getElementById("stat-source-sm").textContent = msg.source || "—";
+  if (msg.source_fps !== undefined) {
+    const s = Number(msg.source_fps || 0);
+    document.getElementById("stat-tracker").textContent = s > 0 ? `Src ${s.toFixed(1)} fps` : "Src —";
+  }
+  if (msg.model) {
+    document.getElementById("stat-model").textContent = msg.model.replace(".pt","");
+    // Marcar botón activo
+    document.querySelectorAll("#model-grid .btn").forEach(b => b.classList.remove("primary"));
+    const key = msg.model.replace(".","").replace("pt","");
+    const btn = document.getElementById("mdl-" + msg.model.replace(".pt",""));
+    if (btn) btn.classList.add("primary");
+  }
+  if (msg.imgsz !== undefined) {
+    document.getElementById("imgsz-select").value = msg.imgsz;
+  }
+  if (msg.conf !== undefined) {
+    const pct = Math.round(msg.conf * 100);
+    document.getElementById("conf-val").textContent = pct + "%";
+    document.getElementById("conf-slider").value = pct;
+  }
+
+  const pill  = document.getElementById("mode-pill");
+  const label = document.getElementById("mode-label");
+  const mode  = (msg.mode || "MENU").toUpperCase();
+  pill.className = "pill mode-" + mode.toLowerCase();
+  label.textContent = mode === "CALIBRANDO" ? "Calibrando" :
+                      mode === "TRACKING"   ? "Tracking activo" : "En espera";
+
+  calibMode = (mode === "CALIBRANDO");
+  const vw = document.getElementById("video-wrap");
+  vw.classList.toggle("calib-cursor", calibMode || editMode === "plane");
+
+  if (msg.plane_ready !== undefined) {
+    document.getElementById("plane-ready").textContent = msg.plane_ready ? "Sí" : "No";
+    document.getElementById("plane-ready").style.color = msg.plane_ready ? "var(--accent)" : "var(--danger)";
+  }
+  if (msg.mirror_x !== undefined) {
+    const el = document.getElementById("mirror-toggle");
+    if (el) el.checked = !!msg.mirror_x;
+  }
+  if (msg.aruco_detected !== undefined || msg.aruco_auto_active !== undefined) {
+    const statusEl = document.getElementById("aruco-status");
+    const active = !!msg.aruco_auto_active;
+    const detected = !!msg.aruco_detected;
+    if (statusEl) {
+      statusEl.textContent = active
+        ? (detected ? "Aruco detectado" : "Buscando ArUco…")
+        : "Aruco inactivo";
+      statusEl.style.color = detected ? "var(--accent)" : active ? "var(--warn)" : "var(--txt2)";
+    }
+  }
+  if (msg.simulation_enabled !== undefined) {
+    updateSimulationButton(!!msg.simulation_enabled);
+  }
+}
+
+// ── Zone overlay ──────────────────────────────────────────────────────────────
+function handleZone(msg) {
+  zonePoints = msg.points || [];
+  planePoints = msg.plane_points || [];
+  frameW = msg.fw || frameW;
+  frameH = msg.fh || frameH;
+  document.getElementById("pt-count").textContent = zonePoints.length;
+  document.getElementById("plane-pt-count").textContent = planePoints.length;
+  if (msg.mirror_x !== undefined) {
+    document.getElementById("mirror-toggle").checked = !!msg.mirror_x;
+  }
+  if (msg.aruco_marker_id !== undefined) {
+    document.getElementById("aruco-id").value = msg.aruco_marker_id;
+  }
+  if (msg.aruco_marker_size_mm !== undefined) {
+    document.getElementById("aruco-mm").value = Math.round(msg.aruco_marker_size_mm);
+  }
+  if (msg.camera_height_m !== undefined) {
+    document.getElementById("cam-height-cm").value = Math.round(msg.camera_height_m * 100);
+  }
+  if (msg.screen_config) {
+    const sc = msg.screen_config;
+    if (sc.x_m !== undefined) document.getElementById("screen-x").value = sc.x_m;
+    if (sc.z_m !== undefined) document.getElementById("screen-z").value = sc.z_m;
+    if (sc.yaw_deg !== undefined) document.getElementById("screen-yaw").value = sc.yaw_deg;
+    if (sc.width_m !== undefined) document.getElementById("screen-w").value = sc.width_m;
+    if (sc.height_m !== undefined) document.getElementById("screen-h").value = sc.height_m;
+    if (sc.enabled !== undefined) document.getElementById("screen-enabled").checked = !!sc.enabled;
+  }
+  if (msg.view_config) applySharedViewConfig(msg.view_config);
+  renderZoneSVG();
+}
+
+function applySharedViewConfig(cfg) {
+  if (!cfg || typeof cfg !== "object") return;
+  if (cfg.content_yaw_deg !== undefined) document.getElementById("view-cam-yaw").value = cfg.content_yaw_deg;
+  if (cfg.content_pitch_deg !== undefined) document.getElementById("view-cam-pitch").value = cfg.content_pitch_deg;
+  if (cfg.content_distance_m !== undefined) document.getElementById("view-cam-dist").value = cfg.content_distance_m;
+  if (cfg.content_target_x_m !== undefined) document.getElementById("view-target-x").value = cfg.content_target_x_m;
+  if (cfg.content_target_y_m !== undefined) document.getElementById("view-target-y").value = cfg.content_target_y_m;
+  if (cfg.content_target_z_m !== undefined) document.getElementById("view-target-z").value = cfg.content_target_z_m;
+}
+
+function handleAruco(msg) {
+  const statusEl = document.getElementById("aruco-status");
+  const qualityEl = document.getElementById("aruco-quality");
+  if (!statusEl) return;
+  statusEl.textContent = msg.message || "Aruco";
+  statusEl.style.color = msg.detected ? "var(--accent)" : msg.auto_active ? "var(--warn)" : "var(--txt2)";
+  if (qualityEl) {
+    const q = Number.isFinite(msg.quality) ? msg.quality : 0;
+    const label = msg.quality_label || "bad";
+    const labelTxt = label === "good" ? "verde" : label === "warn" ? "amarillo" : "rojo";
+    qualityEl.textContent = `Calidad: ${q}/100 (${labelTxt})`;
+    qualityEl.style.color = label === "good" ? "var(--accent)" : label === "warn" ? "var(--warn)" : "var(--danger)";
+  }
+}
+
+function handleAck(msg) {
+  if (msg.action === "add_point" || msg.action === "undo_point") {
+    zonePoints = msg.points || [];
+    document.getElementById("pt-count").textContent = zonePoints.length;
+    renderZoneSVG();
+  }
+  if (msg.action === "add_plane_point" || msg.action === "undo_plane_point") {
+    planePoints = msg.plane_points || [];
+    document.getElementById("plane-pt-count").textContent = planePoints.length;
+    renderZoneSVG();
+  }
+  if (msg.action === "confirm_zone") {
+    toast(msg.msg, msg.ok ? "var(--accent)" : "var(--danger)");
+  }
+  if (msg.action === "confirm_plane") {
+    toast(msg.msg, msg.ok ? "var(--accent2)" : "var(--danger)");
+  }
+  if (
+    msg.action === "set_source" ||
+    msg.action === "set_marker_spec" ||
+    msg.action === "start_auto_plane" ||
+    msg.action === "stop_auto_plane" ||
+    msg.action === "confirm_auto_plane" ||
+    msg.action === "set_camera_height" ||
+    msg.action === "set_screen_config" ||
+    msg.action === "set_simulation"
+  ) {
+    toast(msg.msg || (msg.ok ? "OK" : "Error"), msg.ok ? "var(--accent2)" : "var(--danger)");
+    send({ action: "get_aruco" });
+    send({ action: "get_zone" });
+  }
+  if (msg.action === "reset_zone") {
+    zonePoints = [];
+    document.getElementById("pt-count").textContent = 0;
+    renderZoneSVG();
+  }
+  if (msg.action === "reset_plane") {
+    planePoints = [];
+    document.getElementById("plane-pt-count").textContent = 0;
+    renderZoneSVG();
+  }
+}
+
+// ── SVG overlay ───────────────────────────────────────────────────────────────
+function renderZoneSVG() {
+  const svg  = document.getElementById("zone-svg");
+  const img  = document.getElementById("stream");
+  const wrap = document.getElementById("video-wrap");
+
+  // Calcular el rect real que ocupa la imagen (object-fit: contain)
+  const iw = img.naturalWidth  || frameW;
+  const ih = img.naturalHeight || frameH;
+  const cw = wrap.clientWidth;
+  const ch = wrap.clientHeight;
+  const scale  = Math.min(cw / iw, ch / ih);
+  const dispW  = iw * scale;
+  const dispH  = ih * scale;
+  const offX   = (cw - dispW) / 2;
+  const offY   = (ch - dispH) / 2;
+
+  const toDisplay = (points) => points.map(([fx, fy]) => ({
+    sx: offX + (fx / iw) * dispW,
+    sy: offY + (fy / ih) * dispH,
+  }));
+
+  const zone2d = toDisplay(zonePoints);
+  const plane2d = toDisplay(planePoints);
+
+  svg.innerHTML = "";
+
+  if (zone2d.length >= 3) {
+    const poly = document.createElementNS("http://www.w3.org/2000/svg","polygon");
+    poly.setAttribute("points", zone2d.map(p => `${p.sx},${p.sy}`).join(" "));
+    poly.setAttribute("class", "zone-poly");
+    svg.appendChild(poly);
+  } else if (zone2d.length >= 2) {
+    for (let i = 0; i < zone2d.length - 1; i++) {
+      const line = document.createElementNS("http://www.w3.org/2000/svg","line");
+      line.setAttribute("x1", zone2d[i].sx);   line.setAttribute("y1", zone2d[i].sy);
+      line.setAttribute("x2", zone2d[i+1].sx); line.setAttribute("y2", zone2d[i+1].sy);
+      line.setAttribute("stroke","#00ff88"); line.setAttribute("stroke-width","2");
+      line.setAttribute("stroke-dasharray","6 4");
+      svg.appendChild(line);
+    }
+  }
+
+  if (plane2d.length >= 4) {
+    const poly = document.createElementNS("http://www.w3.org/2000/svg","polygon");
+    poly.setAttribute("points", plane2d.map(p => `${p.sx},${p.sy}`).join(" "));
+    poly.setAttribute("fill", "rgba(200,120,255,0.08)");
+    poly.setAttribute("stroke", "#c878ff");
+    poly.setAttribute("stroke-width", "2");
+    poly.setAttribute("stroke-dasharray", "4 4");
+    svg.appendChild(poly);
+  }
+
+  zone2d.forEach((p, idx) => {
+    const circle = document.createElementNS("http://www.w3.org/2000/svg","circle");
+    circle.setAttribute("cx", p.sx); circle.setAttribute("cy", p.sy);
+    circle.setAttribute("r", 6); circle.setAttribute("class","zone-pt");
+    circle.setAttribute("fill", "#00c8ff");
+    svg.appendChild(circle);
+
+    const text = document.createElementNS("http://www.w3.org/2000/svg","text");
+    text.setAttribute("x", p.sx + 9); text.setAttribute("y", p.sy - 6);
+    text.setAttribute("fill","#fff"); text.setAttribute("font-size","11");
+    text.setAttribute("font-family","monospace");
+    text.textContent = idx + 1;
+    svg.appendChild(text);
+  });
+
+  plane2d.forEach((p, idx) => {
+    const circle = document.createElementNS("http://www.w3.org/2000/svg","circle");
+    circle.setAttribute("cx", p.sx); circle.setAttribute("cy", p.sy);
+    circle.setAttribute("r", 6); circle.setAttribute("class","zone-pt");
+    circle.setAttribute("fill", "#c878ff");
+    svg.appendChild(circle);
+
+    const text = document.createElementNS("http://www.w3.org/2000/svg","text");
+    text.setAttribute("x", p.sx + 9); text.setAttribute("y", p.sy + 14);
+    text.setAttribute("fill","#c878ff"); text.setAttribute("font-size","11");
+    text.setAttribute("font-family","monospace");
+    text.textContent = "P" + (idx + 1);
+    svg.appendChild(text);
+  });
+}
+
+// Recalcular SVG al cambiar tamaño
+window.addEventListener("resize", renderZoneSVG);
+
+// ── Click en video → agregar punto ───────────────────────────────────────────
+document.getElementById("video-wrap").addEventListener("click", (e) => {
+  if (editMode === "zone" && !calibMode) {
+    toast("Primero reiniciá la zona para calibrar", "var(--warn)");
+    return;
+  }
+  if (!wsReady) {
+    toast("Conectando… intentá de nuevo", "var(--warn)");
+    return;
+  }
+  // Ignorar clics en el panel SVG cuando hay puntos (click en círculo de punto)
+  if (e.target.tagName === "circle") return;
+
+  const img  = document.getElementById("stream");
+  const wrap = document.getElementById("video-wrap");
+  const rect = wrap.getBoundingClientRect();
+
+  const iw = img.naturalWidth  || frameW;
+  const ih = img.naturalHeight || frameH;
+  const cw = wrap.clientWidth;
+  const ch = wrap.clientHeight;
+  const scale = Math.min(cw / iw, ch / ih);
+  const dispW = iw * scale;
+  const dispH = ih * scale;
+  const offX  = (cw - dispW) / 2;
+  const offY  = (ch - dispH) / 2;
+
+  const localX = e.clientX - rect.left;
+  const localY = e.clientY - rect.top;
+
+  // Mapear al espacio del frame
+  const fx = Math.round((localX - offX) / dispW * iw);
+  const fy = Math.round((localY - offY) / dispH * ih);
+
+  if (fx < 0 || fy < 0 || fx > iw || fy > ih) return;
+
+    const action = editMode === "plane" ? "add_plane_point" : "add_point";
+    send({ action,
+      x: fx, y: fy,
+      fw: iw, fh: ih,
+      dw: iw, dh: ih });
+});
+
+// ── Acciones de fuente ────────────────────────────────────────────────────────
+let webcamScan = false;
+let simulationEnabled = false;
+const TAPO_URL = "rtsp://mpalenque:madariaga1@192.168.0.96:554/stream1";
+
+function updateSimulationButton(enabled) {
+  simulationEnabled = !!enabled;
+  const btn = document.getElementById("btn-simulate");
+  const sub = document.getElementById("sim-status-sub");
+  if (btn) btn.classList.toggle("active", simulationEnabled);
+  if (sub) {
+    sub.textContent = simulationEnabled
+      ? "Activo — posiciones emitidas por el server"
+      : "Servidor envía posiciones fake";
+  }
+}
+
+function toggleSimulation() {
+  send({ action: "set_simulation", enabled: !simulationEnabled });
+  toast(!simulationEnabled ? "Activando simulación…" : "Desactivando simulación…", "var(--accent2)");
+}
+
+function selectSource(type, value, label) {
+  document.querySelectorAll(".source-btn").forEach(b => b.classList.remove("active"));
+  if (type === "tapo") {
+    document.getElementById("btn-tapo").classList.add("active");
+    send({ action: "set_source", source: TAPO_URL, label: "Tapo RTSP" });
+    toast("Conectando a Tapo…");
+  } else if (type === "webcam") {
+    send({ action: "set_source", source: value, label: label });
+    toast(`Conectando webcam índice ${value}…`);
+  }
+}
+
+async function toggleWebcams() {
+  const list = document.getElementById("webcam-list");
+  if (list.style.display !== "none") {
+    list.style.display = "none"; return;
+  }
+  list.style.display = "flex";
+  list.innerHTML = `<div style="font-size:12px;color:var(--txt2);padding:4px 0">Escaneando…</div>`;
+
+  let cams = [];
+  try {
+    const res = await fetch("/sources/webcams");
+    const data = await res.json();
+    cams = (data && data.ok && Array.isArray(data.webcams)) ? data.webcams : [];
+  } catch (err) {
+    list.innerHTML = `<div style="font-size:12px;color:var(--danger)">No se pudo escanear webcams</div>`;
+    return;
+  }
+
+  list.innerHTML = "";
+  if (cams.length === 0) {
+    list.innerHTML = `<div style="font-size:12px;color:var(--txt2)">No se encontraron webcams abiertas por OpenCV</div>`;
+    return;
+  }
+  cams.forEach((cam) => {
+    const btn = document.createElement("button");
+    btn.className = "source-btn";
+    btn.innerHTML = `<span class="icon">🎥</span>
+      <div><div class="lbl">${cam.label || ("Cámara " + cam.index)}</div>
+      <div class="sub">índice ${cam.index}</div></div>`;
+    btn.onclick = () => {
+      document.querySelectorAll(".source-btn").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      selectSource("webcam", cam.index, cam.label || `Webcam ${cam.index}`);
+    };
+    list.appendChild(btn);
+  });
+}
+
+function applyCustomSource() {
+  const input = document.getElementById("custom-source");
+  const raw = (input.value || "").trim();
+  if (!raw) {
+    toast("Ingresá una fuente", "var(--warn)");
+    return;
+  }
+  const source = /^\d+$/.test(raw) ? parseInt(raw, 10) : raw;
+  send({ action: "set_source", source, label: `Manual: ${raw}` });
+  toast(`Conectando fuente: ${raw}…`);
+}
+
+// ── Upload / drag & drop ──────────────────────────────────────────────────────
+const dropZone  = document.getElementById("drop-zone");
+const fileInput = document.getElementById("file-input");
+
+dropZone.addEventListener("dragover",  e => { e.preventDefault(); dropZone.classList.add("drag-over"); });
+dropZone.addEventListener("dragleave", () => dropZone.classList.remove("drag-over"));
+dropZone.addEventListener("drop", e => {
+  e.preventDefault();
+  dropZone.classList.remove("drag-over");
+  const file = e.dataTransfer.files[0];
+  if (file) uploadFile(file);
+});
+fileInput.addEventListener("change", () => {
+  if (fileInput.files[0]) uploadFile(fileInput.files[0]);
+});
+
+async function uploadFile(file) {
+  toast(`Subiendo ${file.name}…`);
+  const fd = new FormData();
+  fd.append("file", file);
+  try {
+    const res  = await fetch("/upload", { method: "POST", body: fd });
+    const data = await res.json();
+    if (data.ok) {
+      document.querySelectorAll(".source-btn").forEach(b => b.classList.remove("active"));
+      toast(`✓ ${data.name} cargado`);
+      send({ action: "start_stream" });
+    } else {
+      toast("Error al subir el archivo", "var(--danger)");
+    }
+  } catch (err) {
+    toast("Error de red al subir", "var(--danger)");
+  }
+}
+
+// ── Zona ──────────────────────────────────────────────────────────────────────
+let currentModel = "yolo11m.pt";
+let currentImgsz = 640;
+
+function setModel(name) {
+  currentModel = name;
+  send({ action: "set_model", model: name, imgsz: currentImgsz, half: true });
+  toast(`Cargando ${name}…`, "var(--accent2)");
+}
+function setImgsz(val) {
+  currentImgsz = parseInt(val);
+  send({ action: "set_model", model: currentModel, imgsz: currentImgsz, half: true });
+  toast(`Inferencia a ${val}px`);
+}
+
+function undoPoint()   { send({ action: "undo_point" }); }
+function confirmZone() { send({ action: "confirm_zone" }); }
+function resetZone()   { send({ action: "reset_zone" }); }
+function undoPlanePoint() { send({ action: "undo_plane_point" }); }
+function confirmPlane() { send({ action: "confirm_plane" }); }
+function resetPlane() { send({ action: "reset_plane" }); }
+
+function setEditMode(mode) {
+  editMode = mode === "plane" ? "plane" : "zone";
+  document.getElementById("edit-mode-label").textContent = editMode === "plane" ? "Plano de superficie" : "Zona detección";
+  document.getElementById("btn-edit-zone").classList.toggle("primary", editMode === "zone");
+  document.getElementById("btn-edit-plane").classList.toggle("primary", editMode === "plane");
+}
+
+function toggleMirror(checked) {
+  send({ action: "set_mirror", mirror_x: !!checked });
+  toast(checked ? "Espejo activado" : "Espejo desactivado");
+}
+
+function openArucoPage() {
+  window.open("/aruco.html", "_blank", "noopener");
+}
+
+function saveMarkerSpec() {
+  const markerId = parseInt(document.getElementById("aruco-id").value || "0", 10);
+  const markerMm = parseFloat(document.getElementById("aruco-mm").value || "120");
+  send({ action: "set_marker_spec", marker_id: markerId, marker_size_mm: markerMm });
+}
+
+function saveCameraHeight() {
+  const cm = parseFloat(document.getElementById("cam-height-cm").value || "94");
+  const meters = Math.max(0.2, cm / 100);
+  send({ action: "set_camera_height", camera_height_m: meters });
+  toast(`Altura cámara: ${cm.toFixed(0)} cm`);
+}
+
+function saveScreenConfig() {
+  send({
+    action: "set_screen_config",
+    enabled: document.getElementById("screen-enabled").checked,
+    x_m: parseFloat(document.getElementById("screen-x").value || "0"),
+    z_m: parseFloat(document.getElementById("screen-z").value || "1.2"),
+    yaw_deg: parseFloat(document.getElementById("screen-yaw").value || "0"),
+    width_m: parseFloat(document.getElementById("screen-w").value || "3.5"),
+    height_m: parseFloat(document.getElementById("screen-h").value || "2.0"),
+  });
+  toast("Screen guardada");
+}
+
+async function saveSharedViewConfig() {
+  const payload = {
+    content_yaw_deg: parseFloat(document.getElementById("view-cam-yaw").value || "45"),
+    content_pitch_deg: parseFloat(document.getElementById("view-cam-pitch").value || "37.2"),
+    content_distance_m: parseFloat(document.getElementById("view-cam-dist").value || "4.6"),
+    content_target_x_m: parseFloat(document.getElementById("view-target-x").value || "0"),
+    content_target_y_m: parseFloat(document.getElementById("view-target-y").value || "0.25"),
+    content_target_z_m: parseFloat(document.getElementById("view-target-z").value || "0"),
+  };
+  try {
+    const res = await fetch("/api/view-config", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (data && data.ok) {
+      applySharedViewConfig(data.view_config || payload);
+      toast("Cámara compartida guardada", "var(--accent2)");
+    } else {
+      toast("No se pudo guardar cámara compartida", "var(--danger)");
+    }
+  } catch (_) {
+    toast("Error guardando cámara compartida", "var(--danger)");
+  }
+}
+
+function startAutoPlane() {
+  saveMarkerSpec();
+  send({ action: "start_auto_plane" });
+}
+
+function confirmAutoPlane() {
+  send({ action: "confirm_auto_plane" });
+}
+
+function stopAutoPlane() {
+  send({ action: "stop_auto_plane" });
+}
+
+let confTimer;
+function onConfChange(v) {
+  document.getElementById("conf-val").textContent = v + "%";
+}
+function sendConf(v) {
+  send({ action: "set_conf", conf: parseFloat(v) / 100 });
+  toast(`Confianza: ${v}%`);
+}
+
+function setPerfProfile(profile) {
+  send({ action: "set_perf_profile", profile });
+  toast(`Perfil ${profile} aplicado`);
+}
+
+// ── Toast ─────────────────────────────────────────────────────────────────────
+let toastTimer;
+function toast(msg, color = "var(--accent)") {
+  const el = document.getElementById("toast");
+  el.textContent  = msg;
+  el.style.color  = color;
+  el.style.borderColor = color;
+  el.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove("show"), 2800);
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+setEditMode("zone");
+connectWS();
+setTimeout(() => send({ action: "get_aruco" }), 500);
+</script>
+</body>
+</html>

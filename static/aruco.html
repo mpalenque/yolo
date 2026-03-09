@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Marcador ArUco</title>
+  <style>
+    :root {
+      --bg: #0b0b0b;
+      --fg: #efefef;
+      --muted: #8f8f8f;
+      --accent: #00ff88;
+      --panel: rgba(0, 0, 0, 0.75);
+      --border: #2a2a2a;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--fg);
+      font-family: 'Segoe UI', system-ui, sans-serif;
+    }
+    .stage {
+      width: 100%;
+      height: 100%;
+      display: grid;
+      place-items: center;
+      background: #111;
+    }
+    #marker {
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+      background: white;
+      box-shadow: 0 0 0 2px #fff;
+    }
+    .panel {
+      position: fixed;
+      top: 14px;
+      left: 14px;
+      z-index: 20;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding: 12px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--panel);
+      min-width: 250px;
+    }
+    .row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+    }
+    input {
+      width: 84px;
+      background: #191919;
+      color: var(--fg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 6px;
+      font-size: 13px;
+    }
+    button {
+      background: #171717;
+      border: 1px solid var(--border);
+      color: var(--fg);
+      border-radius: 8px;
+      padding: 7px 10px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    button:hover { border-color: var(--accent); color: var(--accent); }
+    .help {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.4;
+      max-width: 360px;
+    }
+  </style>
+</head>
+<body>
+  <div class="stage">
+    <img id="marker" alt="Aruco marker" />
+  </div>
+
+  <div class="panel">
+    <div class="row">
+      <span>Marker ID</span>
+      <input id="marker-id" type="number" min="0" max="49" value="0" />
+      <span>Lado (mm)</span>
+      <input id="marker-mm" type="number" min="20" value="120" />
+    </div>
+    <div class="row">
+      <button id="btn-apply" type="button">Aplicar</button>
+      <button id="btn-full" type="button">Pantalla completa</button>
+      <button id="btn-hide" type="button">Ocultar panel</button>
+    </div>
+    <div class="help">
+      Mostrá este marcador en la pantalla de la laptop y apuntá la cámara principal.
+      En la página de configuración, activá “Iniciar auto” y luego “Confirmar auto”.
+    </div>
+  </div>
+
+  <script>
+    const markerImg = document.getElementById('marker');
+    const markerIdInput = document.getElementById('marker-id');
+    const markerMmInput = document.getElementById('marker-mm');
+    const panel = document.querySelector('.panel');
+
+    function applyMarker() {
+      const markerId = Math.max(0, parseInt(markerIdInput.value || '0', 10));
+      const markerMm = Math.max(20, parseFloat(markerMmInput.value || '120'));
+      const px = 900;
+      markerImg.src = `/api/aruco/marker.png?marker_id=${markerId}&px=${px}&_=${Date.now()}`;
+      markerImg.style.width = `${markerMm}mm`;
+      markerImg.style.height = `${markerMm}mm`;
+      markerIdInput.value = String(markerId);
+      markerMmInput.value = String(Math.round(markerMm));
+      try {
+        localStorage.setItem('aruco.marker_id', String(markerId));
+        localStorage.setItem('aruco.marker_mm', String(markerMm));
+      } catch (_) {}
+    }
+
+    function loadState() {
+      try {
+        const id = localStorage.getItem('aruco.marker_id');
+        const mm = localStorage.getItem('aruco.marker_mm');
+        if (id !== null) markerIdInput.value = id;
+        if (mm !== null) markerMmInput.value = String(Math.round(parseFloat(mm)));
+      } catch (_) {}
+    }
+
+    document.getElementById('btn-apply').addEventListener('click', applyMarker);
+    document.getElementById('btn-full').addEventListener('click', async () => {
+      try {
+        if (!document.fullscreenElement) {
+          await document.documentElement.requestFullscreen();
+        } else {
+          await document.exitFullscreen();
+        }
+      } catch (_) {}
+    });
+    document.getElementById('btn-hide').addEventListener('click', () => {
+      panel.style.display = panel.style.display === 'none' ? 'flex' : 'none';
+    });
+
+    loadState();
+    applyMarker();
+  </script>
+</body>
+</html>

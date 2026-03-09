@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Fullscreen Visual</title>
+  <style>
+    :root {
+      --stage-left: 0px;
+      --stage-top: 0px;
+      --stage-width: 1152px;
+      --stage-height: 768px;
+    }
+
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #000;
+      position: relative;
+    }
+
+    canvas {
+      display: block;
+      position: fixed;
+      top: var(--stage-top);
+      left: var(--stage-left);
+      width: var(--stage-width);
+      height: var(--stage-height);
+      background: #000;
+    }
+
+    video {
+      display: none;
+    }
+
+    .viewport-frame {
+      position: fixed;
+      top: var(--stage-top);
+      left: var(--stage-left);
+      width: var(--stage-width);
+      height: var(--stage-height);
+      border: 1px solid rgba(255, 255, 255, 0.28);
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    .viewport-controls {
+      position: fixed;
+      top: 12px;
+      right: 12px;
+      z-index: 20;
+      display: grid;
+      grid-template-columns: auto 84px;
+      gap: 8px 10px;
+      align-items: center;
+      padding: 12px;
+      background: rgba(0, 0, 0, 0.78);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 12px;
+      color: #fff;
+      font: 12px/1.2 Segoe UI, sans-serif;
+    }
+
+    .viewport-controls input {
+      width: 84px;
+      padding: 6px 8px;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.08);
+      color: #fff;
+    }
+
+    .viewport-controls button {
+      padding: 8px 10px;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.1);
+      color: #fff;
+      cursor: pointer;
+    }
+
+    .viewport-controls .buttons {
+      grid-column: 1 / span 2;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .viewport-controls .presets {
+      grid-column: 1 / span 2;
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 8px;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="scene"></canvas>
+  <div class="viewport-frame" aria-hidden="true"></div>
+  <div class="viewport-controls">
+    <label for="vp-x">X</label>
+    <input id="vp-x" type="number" min="0" max="10000" step="1" />
+    <label for="vp-y">Y</label>
+    <input id="vp-y" type="number" min="0" max="10000" step="1" />
+    <label for="vp-w">W</label>
+    <input id="vp-w" type="number" min="64" max="10000" step="1" />
+    <label for="vp-h">H</label>
+    <input id="vp-h" type="number" min="64" max="10000" step="1" />
+    <div class="buttons">
+      <button id="vp-apply" type="button">Apply Viewport</button>
+      <button id="vp-reset" type="button">Reset 1152x768</button>
+    </div>
+    <div class="presets">
+      <button id="vp-top-left" type="button">Top-left</button>
+      <button id="vp-centered" type="button">Centered</button>
+      <button id="vp-full" type="button">Full window</button>
+    </div>
+  </div>
+  <video id="loopVideo" src="/media/visual-loop.mp4" muted autoplay loop playsinline preload="auto"></video>
+
+  <script>
+    function parseViewportNumber(params, key, fallback, min, max) {
+      const raw = Number(params.get(key));
+      if (!Number.isFinite(raw)) return fallback;
+      return Math.max(min, Math.min(max, raw));
+    }
+
+    const VIEWPORT_STORAGE_KEY = 'yolo.fullscreen.viewport';
+
+    function loadViewport() {
+      const params = new URLSearchParams(window.location.search);
+      let stored = {};
+      try {
+        stored = JSON.parse(localStorage.getItem(VIEWPORT_STORAGE_KEY) || '{}') || {};
+      } catch (_) {}
+      return {
+        x: parseViewportNumber(params, 'x', Number(stored.x) || 0, 0, 10000),
+        y: parseViewportNumber(params, 'y', Number(stored.y) || 0, 0, 10000),
+        width: parseViewportNumber(params, 'w', Number(stored.width) || 1152, 64, 10000),
+        height: parseViewportNumber(params, 'h', Number(stored.height) || 768, 64, 10000),
+      };
+    }
+
+    const viewport = loadViewport();
+
+    function applyViewportCss() {
+      document.documentElement.style.setProperty('--stage-left', `${viewport.x}px`);
+      document.documentElement.style.setProperty('--stage-top', `${viewport.y}px`);
+      document.documentElement.style.setProperty('--stage-width', `${viewport.width}px`);
+      document.documentElement.style.setProperty('--stage-height', `${viewport.height}px`);
+    }
+
+    function persistViewport() {
+      try {
+        localStorage.setItem(VIEWPORT_STORAGE_KEY, JSON.stringify(viewport));
+      } catch (_) {}
+    }
+
+    function updateViewportUrl() {
+      const url = new URL(window.location.href);
+      url.searchParams.set('x', String(viewport.x));
+      url.searchParams.set('y', String(viewport.y));
+      url.searchParams.set('w', String(viewport.width));
+      url.searchParams.set('h', String(viewport.height));
+      window.history.replaceState({}, '', url.toString());
+    }
+
+    applyViewportCss();
+
+    const canvas = document.getElementById('scene');
+    const ctx = canvas.getContext('2d');
+    const loopVideo = document.getElementById('loopVideo');
+    const viewportInputs = {
+      x: document.getElementById('vp-x'),
+      y: document.getElementById('vp-y'),
+      width: document.getElementById('vp-w'),
+      height: document.getElementById('vp-h'),
+      apply: document.getElementById('vp-apply'),
+      reset: document.getElementById('vp-reset'),
+      topLeft: document.getElementById('vp-top-left'),
+      centered: document.getElementById('vp-centered'),
+      full: document.getElementById('vp-full'),
+    };
+    let viewportApplyTimer = null;
+
+    function syncViewportInputs() {
+      viewportInputs.x.value = String(viewport.x);
+      viewportInputs.y.value = String(viewport.y);
+      viewportInputs.width.value = String(viewport.width);
+      viewportInputs.height.value = String(viewport.height);
+    }
+
+    function applyViewportFromInputs() {
+      viewport.x = Math.max(0, Math.min(10000, Number(viewportInputs.x.value) || 0));
+      viewport.y = Math.max(0, Math.min(10000, Number(viewportInputs.y.value) || 0));
+      viewport.width = Math.max(64, Math.min(10000, Number(viewportInputs.width.value) || 1152));
+      viewport.height = Math.max(64, Math.min(10000, Number(viewportInputs.height.value) || 768));
+      applyViewportCss();
+      persistViewport();
+      updateViewportUrl();
+      resizeCanvas();
+      syncViewportInputs();
+    }
+
+    function scheduleViewportApply() {
+      if (viewportApplyTimer) clearTimeout(viewportApplyTimer);
+      viewportApplyTimer = setTimeout(() => {
+        viewportApplyTimer = null;
+        applyViewportFromInputs();
+      }, 180);
+    }
+
+    function setViewportPreset(next) {
+      viewport.x = next.x;
+      viewport.y = next.y;
+      viewport.width = next.width;
+      viewport.height = next.height;
+      applyViewportCss();
+      persistViewport();
+      updateViewportUrl();
+      resizeCanvas();
+      syncViewportInputs();
+    }
+
+    function centeredPreset() {
+      const width = 1152;
+      const height = 768;
+      return {
+        x: Math.max(0, Math.round((window.innerWidth - width) / 2)),
+        y: Math.max(0, Math.round((window.innerHeight - height) / 2)),
+        width,
+        height,
+      };
+    }
+
+    function fullWindowPreset() {
+      return {
+        x: 0,
+        y: 0,
+        width: Math.max(64, window.innerWidth),
+        height: Math.max(64, window.innerHeight),
+      };
+    }
+
+    function resetViewport() {
+      setViewportPreset({ x: 0, y: 0, width: 1152, height: 768 });
+    }
+
+    viewportInputs.apply.addEventListener('click', applyViewportFromInputs);
+    viewportInputs.reset.addEventListener('click', resetViewport);
+    viewportInputs.topLeft.addEventListener('click', () => setViewportPreset({ x: 0, y: 0, width: 1152, height: 768 }));
+    viewportInputs.centered.addEventListener('click', () => setViewportPreset(centeredPreset()));
+    viewportInputs.full.addEventListener('click', () => setViewportPreset(fullWindowPreset()));
+    [viewportInputs.x, viewportInputs.y, viewportInputs.width, viewportInputs.height].forEach((input) => {
+      input.addEventListener('input', scheduleViewportApply);
+      input.addEventListener('change', applyViewportFromInputs);
+    });
+    syncViewportInputs();
+
+    const state = {
+      ws: null,
+      connected: false,
+      people: new Map(),
+      cameraHeightM: 1.5,
+      planeReady: false,
+    };
+
+    function clamp(value, min, max) {
+      return Math.max(min, Math.min(max, value));
+    }
+
+    const cfg = {
+      roomWidth: 8.0,
+      minDepth: 1.2,
+      maxDepth: 12.0,
+      personHeight: 1.7,
+      personWidth: 0.55,
+      heightScale: 1.0,
+      widthScale: 1.0,
+      mediaScale: 1.0,
+      offsetX: 0,
+      offsetY: 0,
+      bottomOffset: 0,
+      fov: 84,
+      flipDepth: false,
+    };
+
+    function applyVisualConfig(config) {
+      if (!config || typeof config !== 'object') return;
+      if (config.room_width_m !== undefined) cfg.roomWidth = Math.max(1.0, Number(config.room_width_m) || cfg.roomWidth);
+      if (config.min_depth_m !== undefined) cfg.minDepth = Math.max(0.15, Number(config.min_depth_m) || cfg.minDepth);
+      if (config.max_depth_m !== undefined) cfg.maxDepth = Math.max(0.3, Number(config.max_depth_m) || cfg.maxDepth);
+      if (config.person_height_m !== undefined) cfg.personHeight = Math.max(0.4, Number(config.person_height_m) || cfg.personHeight);
+      if (config.person_width_m !== undefined) cfg.personWidth = Math.max(0.1, Number(config.person_width_m) || cfg.personWidth);
+      if (config.height_scale !== undefined) cfg.heightScale = Math.max(0.2, Number(config.height_scale) || cfg.heightScale);
+      if (config.width_scale !== undefined) cfg.widthScale = Math.max(0.2, Number(config.width_scale) || cfg.widthScale);
+      if (config.media_scale !== undefined) cfg.mediaScale = Math.max(0.1, Number(config.media_scale) || cfg.mediaScale);
+      if (config.offset_x_px !== undefined) cfg.offsetX = Number(config.offset_x_px) || 0;
+      if (config.offset_y_px !== undefined) cfg.offsetY = Number(config.offset_y_px) || 0;
+      if (config.bottom_offset_px !== undefined) cfg.bottomOffset = Number(config.bottom_offset_px) || 0;
+      if (config.fov_deg !== undefined) cfg.fov = Math.max(35, Math.min(130, Number(config.fov_deg) || cfg.fov));
+      if (config.flip_depth !== undefined) cfg.flipDepth = !!config.flip_depth;
+      cfg.maxDepth = Math.max(cfg.minDepth + 0.1, cfg.maxDepth);
+    }
+
+    async function loadVisualConfig() {
+      try {
+        const res = await fetch('/api/visual-config');
+        const data = await res.json();
+        applyVisualConfig(data && data.visual_config ? data.visual_config : null);
+      } catch (_) {}
+    }
+
+    function resizeCanvas() {
+      const dpr = window.devicePixelRatio || 1;
+      const width = Math.floor(viewport.width * dpr);
+      const height = Math.floor(viewport.height * dpr);
+      if (canvas.width !== width || canvas.height !== height) {
+        canvas.width = width;
+        canvas.height = height;
+      }
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.scale(dpr, dpr);
+    }
+
+    window.addEventListener('resize', resizeCanvas, { passive: true });
+    resizeCanvas();
+
+    function createPersonVideo() {
+      const video = document.createElement('video');
+      video.src = loopVideo.currentSrc || loopVideo.src;
+      video.muted = true;
+      video.loop = true;
+      video.autoplay = true;
+      video.playsInline = true;
+      video.preload = 'auto';
+      video.style.display = 'none';
+      document.body.appendChild(video);
+      return video;
+    }
+
+    function ensurePersonVideo(person) {
+      if (person.video && person.video.isConnected) {
+        return person.video;
+      }
+      person.video = createPersonVideo();
+      return person.video;
+    }
+
+    function disposePersonVideo(person) {
+      if (!person || !person.video) return;
+      try {
+        person.video.pause();
+      } catch (_) {}
+      try {
+        person.video.remove();
+      } catch (_) {}
+      person.video = null;
+    }
+
+    async function ensureVideoPlayback() {
+      try {
+        loopVideo.muted = true;
+        await loopVideo.play();
+      } catch (_) {}
+
+      for (const person of state.people.values()) {
+        if (!person.video) continue;
+        try {
+          person.video.muted = true;
+          await person.video.play();
+        } catch (_) {}
+      }
+    }
+
+    document.addEventListener('pointerdown', ensureVideoPlayback, { passive: true, once: true });
+    ensureVideoPlayback();
+
+    function connect() {
+      const scheme = location.protocol === 'https:' ? 'wss' : 'ws';
+      const ws = new WebSocket(`${scheme}://${location.host}/ws/positions`);
+      state.ws = ws;
+
+      ws.onopen = () => {
+        state.connected = true;
+      };
+
+      ws.onclose = () => {
+        state.connected = false;
+        setTimeout(connect, 1500);
+      };
+
+      ws.onerror = () => {
+        try { ws.close(); } catch (_) {}
+      };
+
+      ws.onmessage = (event) => {
+        let msg;
+        try {
+          msg = JSON.parse(event.data);
+        } catch {
+          return;
+        }
+        if (msg.type !== 'positions') return;
+
+        state.planeReady = !!msg.plane_ready;
+        if (typeof msg.camera_height_m === 'number' && Number.isFinite(msg.camera_height_m)) {
+          state.cameraHeightM = Math.max(0.1, msg.camera_height_m);
+        }
+        applyVisualConfig(msg.visual_config || null);
+
+        const incomingIds = new Set();
+        for (const person of msg.people || []) {
+          const id = Number(person.id ?? 0);
+          incomingIds.add(id);
+          const now = performance.now();
+          const current = state.people.get(id) || {
+            id,
+            displayU: typeof person.u === 'number' ? person.u : 0.5,
+            displayV: typeof person.v === 'number' ? person.v : 0.5,
+            targetU: typeof person.u === 'number' ? person.u : 0.5,
+            targetV: typeof person.v === 'number' ? person.v : 0.5,
+            lastSeen: now,
+            lastUpdateAt: now,
+            smoothedSpeed: 0,
+            instantNormalizedSpeed: 0,
+            smoothedNormalizedSpeed: 0,
+            directionX: 1,
+            playbackRate: 0,
+            lastMotionAt: 0,
+            instantScreenSpeed: 0,
+            smoothedScreenSpeed: 0,
+            lastCenterX: null,
+            lastCenterY: null,
+            lastCenterAt: 0,
+            video: null,
+          };
+          const nextU = typeof person.u === 'number' ? person.u : current.targetU;
+          const nextV = typeof person.v === 'number' ? person.v : current.targetV;
+          const dt = Math.max(0.016, (now - current.lastUpdateAt) / 1000);
+          const deltaU = nextU - current.targetU;
+          const deltaV = nextV - current.targetV;
+          const normalizedSpeed = Math.hypot(deltaU, deltaV) / dt;
+          current.instantNormalizedSpeed = normalizedSpeed;
+          current.smoothedNormalizedSpeed += (normalizedSpeed - current.smoothedNormalizedSpeed) * 0.5;
+          current.smoothedSpeed += (normalizedSpeed - current.smoothedSpeed) * 0.35;
+          if (Math.abs(deltaU) > 0.0008) {
+            current.directionX = deltaU < 0 ? -1 : 1;
+          }
+          current.lastUpdateAt = now;
+          current.targetU = typeof person.u === 'number' ? person.u : current.targetU;
+          current.targetV = typeof person.v === 'number' ? person.v : current.targetV;
+          current.targetU = nextU;
+          current.targetV = nextV;
+          current.lastSeen = now;
+          ensurePersonVideo(current);
+          state.people.set(id, current);
+        }
+
+        for (const [id, person] of state.people) {
+          if (!incomingIds.has(id) && performance.now() - person.lastSeen > 700) {
+            disposePersonVideo(person);
+            state.people.delete(id);
+          }
+        }
+      };
+    }
+
+    function projectPerson(person, width, height) {
+      const u = Math.max(0, Math.min(1, person.displayU));
+      const vRaw = Math.max(0, Math.min(1, person.displayV));
+      const v = cfg.flipDepth ? 1 - vRaw : vRaw;
+      const worldX = (u - 0.5) * cfg.roomWidth;
+      const worldZ = cfg.minDepth + v * (cfg.maxDepth - cfg.minDepth);
+      const focal = (width * 0.5) / Math.tan((cfg.fov * Math.PI / 180) * 0.5);
+      const horizonY = height * 0.52;
+      const centerX = width * 0.5;
+      const feetY = horizonY + focal * (state.cameraHeightM / worldZ) + cfg.bottomOffset;
+      const bodyHeightM = cfg.personHeight * cfg.heightScale;
+      const bodyWidthM = cfg.personWidth * cfg.widthScale;
+      const headY = horizonY + focal * ((state.cameraHeightM - bodyHeightM) / worldZ) + cfg.bottomOffset;
+      const centerPx = centerX + focal * (worldX / worldZ) + cfg.offsetX;
+      const rectWidth = Math.max(8, focal * (bodyWidthM / worldZ));
+      const rectHeight = Math.max(12, feetY - headY);
+      return {
+        id: person.id,
+        depth: worldZ,
+        x: centerPx - rectWidth / 2,
+        y: headY + cfg.offsetY,
+        width: rectWidth,
+        height: rectHeight,
+        centerX: centerPx,
+        feetY: feetY + cfg.offsetY,
+      };
+    }
+
+    function updatePersonPlayback(person) {
+      const video = ensurePersonVideo(person);
+      const now = performance.now();
+      const motionPx = Math.max(
+        0,
+        Number.isFinite(person.smoothedScreenSpeed) ? person.smoothedScreenSpeed : 0,
+        Number.isFinite(person.instantScreenSpeed) ? person.instantScreenSpeed * 0.9 : 0,
+        Number.isFinite(person.smoothedNormalizedSpeed) ? person.smoothedNormalizedSpeed * 520 : 0,
+        Number.isFinite(person.instantNormalizedSpeed) ? person.instantNormalizedSpeed * 240 : 0,
+      );
+      if (motionPx > 1.1) {
+        person.lastMotionAt = now;
+      }
+      const shouldPlay = (now - (person.lastMotionAt || 0)) < 260;
+      const activeSpeed = clamp((motionPx - 0.8) / 95, 0, 1);
+      const playbackRate = shouldPlay ? clamp(0.22 + activeSpeed * 1.78, 0.22, 2.0) : 0;
+      person.playbackRate = playbackRate;
+
+      if (playbackRate <= 0) {
+        try { video.pause(); } catch (_) {}
+        return;
+      }
+
+      video.playbackRate = playbackRate;
+      if (video.paused) {
+        video.muted = true;
+        video.play().catch(() => {});
+      }
+    }
+
+    function drawVideoPerson(projected, person) {
+      const video = ensurePersonVideo(person);
+      if (video.readyState < 2 || !video.videoWidth || !video.videoHeight) return;
+
+      const fitScale = Math.min(
+        projected.width / video.videoWidth,
+        projected.height / video.videoHeight
+      );
+      const mediaScale = Math.max(0.1, cfg.mediaScale || 1);
+      const drawWidth = video.videoWidth * fitScale * mediaScale;
+      const drawHeight = video.videoHeight * fitScale * mediaScale;
+      const drawX = projected.centerX - (drawWidth * 0.5);
+      const drawY = projected.feetY - drawHeight;
+      const facingLeft = person.directionX < 0;
+
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      if (facingLeft) {
+        ctx.translate(drawX + drawWidth, 0);
+        ctx.scale(-1, 1);
+        ctx.drawImage(video, 0, drawY, drawWidth, drawHeight);
+      } else {
+        ctx.drawImage(video, drawX, drawY, drawWidth, drawHeight);
+      }
+      ctx.restore();
+    }
+
+    function animate() {
+      resizeCanvas();
+      const width = viewport.width;
+      const height = viewport.height;
+      ctx.clearRect(0, 0, width, height);
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, width, height);
+
+      if (state.planeReady) {
+        const now = performance.now();
+        const projected = [];
+        for (const [id, person] of state.people) {
+          const alpha = Math.min(0.24, (now - person.lastSeen) < 180 ? 0.18 : 0.08);
+          person.displayU += (person.targetU - person.displayU) * alpha;
+          person.displayV += (person.targetV - person.displayV) * alpha;
+
+          if (now - person.lastSeen > 1600) {
+            disposePersonVideo(person);
+            state.people.delete(id);
+            continue;
+          }
+          const projection = projectPerson(person, width, height);
+          const centerX = projection.centerX;
+          const centerY = projection.y + projection.height * 0.5;
+          const centerDt = person.lastCenterAt ? Math.max(0.016, (now - person.lastCenterAt) / 1000) : (1 / 60);
+          const prevCenterX = Number.isFinite(person.lastCenterX) ? person.lastCenterX : centerX;
+          const prevCenterY = Number.isFinite(person.lastCenterY) ? person.lastCenterY : centerY;
+          const velX = (centerX - prevCenterX) / centerDt;
+          const velY = (centerY - prevCenterY) / centerDt;
+          const screenSpeed = Math.hypot(velX, velY);
+          person.instantScreenSpeed = screenSpeed;
+          person.smoothedScreenSpeed += (screenSpeed - person.smoothedScreenSpeed) * 0.42;
+          person.lastCenterX = centerX;
+          person.lastCenterY = centerY;
+          person.lastCenterAt = now;
+          updatePersonPlayback(person);
+          projected.push({ person, projected: projection });
+        }
+
+        projected.sort((a, b) => b.projected.depth - a.projected.depth);
+        for (const item of projected) {
+          drawVideoPerson(item.projected, item.person);
+        }
+      }
+
+      requestAnimationFrame(animate);
+    }
+
+    loadVisualConfig();
+    connect();
+    requestAnimationFrame(animate);
+  </script>
+</body>
+</html>

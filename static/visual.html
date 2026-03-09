@@ -1,0 +1,1012 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Visual LED POV</title>
+  <style>
+    :root {
+      --bg: #05070b;
+      --panel: rgba(10, 14, 22, 0.82);
+      --panel-border: rgba(255, 255, 255, 0.1);
+      --text: #e7edf7;
+      --muted: #9fb0c5;
+      --accent: #54f2c2;
+      --danger: #ff6b6b;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: radial-gradient(circle at 50% 20%, #111827 0%, #06080d 40%, #020305 100%);
+      color: var(--text);
+      font-family: "Segoe UI", system-ui, sans-serif;
+    }
+
+    canvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+    }
+
+    .hud {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+    }
+
+    .status,
+    .controls,
+    .legend {
+      position: absolute;
+      pointer-events: auto;
+      background: var(--panel);
+      border: 1px solid var(--panel-border);
+      backdrop-filter: blur(14px);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.28);
+    }
+
+    .status {
+      top: 16px;
+      left: 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      border-radius: 14px;
+      min-width: 240px;
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      background: var(--danger);
+      box-shadow: 0 0 16px currentColor;
+      flex: 0 0 auto;
+    }
+
+    .dot.ok {
+      background: var(--accent);
+    }
+
+    .status strong {
+      display: block;
+      font-size: 14px;
+      letter-spacing: 0.02em;
+    }
+
+    .status small {
+      display: block;
+      margin-top: 2px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .controls {
+      top: 16px;
+      right: 16px;
+      width: 320px;
+      border-radius: 16px;
+      overflow: hidden;
+    }
+
+    .controls summary {
+      cursor: pointer;
+      list-style: none;
+      padding: 14px 16px;
+      font-weight: 700;
+      font-size: 14px;
+      user-select: none;
+      letter-spacing: 0.03em;
+    }
+
+    .controls summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .controls .body {
+      padding: 0 16px 16px;
+      display: grid;
+      gap: 12px;
+      max-height: calc(100vh - 90px);
+      overflow: auto;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 92px;
+      gap: 8px 12px;
+      align-items: center;
+    }
+
+    label {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    input[type="number"],
+    input[type="range"],
+    select {
+      width: 100%;
+    }
+
+    input[type="number"],
+    select {
+      padding: 8px 10px;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.1);
+      background: rgba(255,255,255,0.04);
+      color: var(--text);
+      outline: none;
+    }
+
+    select option {
+      color: #111827;
+    }
+
+    input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      accent-color: var(--accent);
+      justify-self: start;
+    }
+
+    .legend {
+      left: 16px;
+      bottom: 16px;
+      width: 360px;
+      padding: 12px 14px;
+      border-radius: 14px;
+    }
+
+    .legend h2 {
+      margin: 0 0 6px;
+      font-size: 14px;
+    }
+
+    .legend p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .badge {
+      display: inline-block;
+      margin-top: 8px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: rgba(84, 242, 194, 0.12);
+      border: 1px solid rgba(84, 242, 194, 0.24);
+      color: var(--accent);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+    }
+
+  </style>
+</head>
+<body>
+  <canvas id="scene"></canvas>
+  <video id="mediaTemplate" src="/media/visual-loop.mp4" muted playsinline preload="metadata" style="display:none"></video>
+
+  <div class="hud">
+    <div class="status">
+      <div id="statusDot" class="dot"></div>
+      <div>
+        <strong id="statusTitle">Desconectado</strong>
+        <small id="statusMeta">Esperando datos...</small>
+      </div>
+    </div>
+
+    <details class="controls" open>
+      <summary>VISUAL LED POV</summary>
+      <div class="body">
+        <div class="grid">
+          <label for="roomWidth">Ancho sala (m)</label>
+          <input id="roomWidth" type="number" min="1" max="50" step="0.1" value="8" />
+
+          <label for="minDepth">Profundidad mínima (m)</label>
+          <input id="minDepth" type="number" min="0.2" max="20" step="0.1" value="1.2" />
+
+          <label for="maxDepth">Profundidad máxima (m)</label>
+          <input id="maxDepth" type="number" min="1" max="50" step="0.1" value="12" />
+
+          <label for="trackingDepthRel">Corte tracking fondo</label>
+          <input id="trackingDepthRel" type="number" min="0" max="1" step="0.01" value="1" />
+
+          <label for="cameraHeight">Altura pantalla/cámara (m)</label>
+          <input id="cameraHeight" type="number" min="0.1" max="5" step="0.01" value="1.5" />
+
+          <label for="personHeight">Altura persona (m)</label>
+          <input id="personHeight" type="number" min="0.5" max="3" step="0.01" value="1.7" />
+
+          <label for="personWidth">Ancho persona (m)</label>
+          <input id="personWidth" type="number" min="0.1" max="2" step="0.01" value="0.55" />
+
+          <label for="heightScale">Escala alto</label>
+          <input id="heightScale" type="number" min="0.2" max="4" step="0.01" value="1" />
+
+          <label for="widthScale">Escala ancho</label>
+          <input id="widthScale" type="number" min="0.2" max="4" step="0.01" value="1" />
+
+          <label for="mediaScale">Escala imagen FS</label>
+          <input id="mediaScale" type="number" min="0.1" max="6" step="0.01" value="1" />
+
+          <label for="offsetX">Offset X (px)</label>
+          <input id="offsetX" type="number" min="-2000" max="2000" step="1" value="0" />
+
+          <label for="offsetY">Offset Y (px)</label>
+          <input id="offsetY" type="number" min="-2000" max="2000" step="1" value="0" />
+
+          <label for="bottomOffset">Offset piso (px)</label>
+          <input id="bottomOffset" type="number" min="-300" max="300" step="1" value="0" />
+
+          <label for="fov">FOV</label>
+          <input id="fov" type="range" min="35" max="130" step="1" value="84" />
+
+          <label for="flipDepth">Invertir profundidad</label>
+          <input id="flipDepth" type="checkbox" />
+
+          <label for="viewCamYaw">Cam /content yaw</label>
+          <input id="viewCamYaw" type="number" min="-360" max="360" step="0.1" value="45" />
+
+          <label for="viewCamPitch">Cam /content pitch</label>
+          <input id="viewCamPitch" type="number" min="-89" max="89" step="0.1" value="37.2" />
+
+          <label for="viewCamDist">Cam /content dist</label>
+          <input id="viewCamDist" type="number" min="0.2" max="50" step="0.1" value="4.6" />
+
+          <label for="viewTargetX">Target X</label>
+          <input id="viewTargetX" type="number" min="-50" max="50" step="0.1" value="0" />
+
+          <label for="viewTargetY">Target Y</label>
+          <input id="viewTargetY" type="number" min="-10" max="10" step="0.1" value="0.25" />
+
+          <label for="viewTargetZ">Target Z</label>
+          <input id="viewTargetZ" type="number" min="-50" max="50" step="0.1" value="0" />
+
+          <label for="particlesEnabled">Partículas on</label>
+          <input id="particlesEnabled" type="checkbox" checked />
+
+          <label for="particlesPreset">Preset partículas</label>
+          <select id="particlesPreset">
+            <option value="classic">Classic</option>
+            <option value="flow">Flow</option>
+          </select>
+
+          <label for="particlesCount">Partículas cant.</label>
+          <input id="particlesCount" type="number" min="0" max="200000" step="1" value="260" />
+
+          <label for="particlesSize">Partículas tamaño</label>
+          <input id="particlesSize" type="number" min="0.2" max="30" step="0.1" value="3.2" />
+
+          <label for="particlesOpacity">Partículas opacidad</label>
+          <input id="particlesOpacity" type="number" min="0" max="1" step="0.01" value="0.3" />
+
+          <label for="particlesSpeed">Partículas velocidad</label>
+          <input id="particlesSpeed" type="number" min="0" max="10" step="0.1" value="1.0" />
+
+          <label for="particlesLife">Partículas lifetime</label>
+          <input id="particlesLife" type="number" min="0.1" max="12" step="0.1" value="2.8" />
+        </div>
+        <button type="button" onclick="saveVisualConfig()" style="padding:10px 12px;border-radius:10px;border:1px solid rgba(255,255,255,0.12);background:rgba(84,242,194,0.12);color:var(--accent);font-weight:700;cursor:pointer;">Guardar visual/fullscreen</button>
+        <button type="button" onclick="saveSharedViewConfig()" style="padding:10px 12px;border-radius:10px;border:1px solid rgba(255,255,255,0.12);background:rgba(84,242,194,0.08);color:var(--text);font-weight:700;cursor:pointer;">Guardar cámara /content</button>
+      </div>
+    </details>
+
+    <div class="legend">
+      <h2>Vista LED</h2>
+      <p>
+        La vista principal usa la misma proyección del fullscreen para que el rectángulo placeholder
+        coincida con el frame real del video.
+      </p>
+      <div class="badge">/ws/positions → LED</div>
+    </div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('scene');
+    const ctx = canvas.getContext('2d');
+    const mediaTemplate = document.getElementById('mediaTemplate');
+
+    const statusDot = document.getElementById('statusDot');
+    const statusTitle = document.getElementById('statusTitle');
+    const statusMeta = document.getElementById('statusMeta');
+
+    const controls = {
+      roomWidth: document.getElementById('roomWidth'),
+      minDepth: document.getElementById('minDepth'),
+      maxDepth: document.getElementById('maxDepth'),
+      trackingDepthRel: document.getElementById('trackingDepthRel'),
+      cameraHeight: document.getElementById('cameraHeight'),
+      personHeight: document.getElementById('personHeight'),
+      personWidth: document.getElementById('personWidth'),
+      heightScale: document.getElementById('heightScale'),
+      widthScale: document.getElementById('widthScale'),
+      mediaScale: document.getElementById('mediaScale'),
+      offsetX: document.getElementById('offsetX'),
+      offsetY: document.getElementById('offsetY'),
+      bottomOffset: document.getElementById('bottomOffset'),
+      fov: document.getElementById('fov'),
+      flipDepth: document.getElementById('flipDepth'),
+      viewCamYaw: document.getElementById('viewCamYaw'),
+      viewCamPitch: document.getElementById('viewCamPitch'),
+      viewCamDist: document.getElementById('viewCamDist'),
+      viewTargetX: document.getElementById('viewTargetX'),
+      viewTargetY: document.getElementById('viewTargetY'),
+      viewTargetZ: document.getElementById('viewTargetZ'),
+      particlesEnabled: document.getElementById('particlesEnabled'),
+      particlesPreset: document.getElementById('particlesPreset'),
+      particlesCount: document.getElementById('particlesCount'),
+      particlesSize: document.getElementById('particlesSize'),
+      particlesOpacity: document.getElementById('particlesOpacity'),
+      particlesSpeed: document.getElementById('particlesSpeed'),
+      particlesLife: document.getElementById('particlesLife'),
+    };
+
+    const state = {
+      ws: null,
+      connected: false,
+      cameraName: 'Sin fuente',
+      lastMessageAt: 0,
+      planeReady: false,
+      people: new Map(),
+      latestCount: 0,
+      mediaWidth: 9,
+      mediaHeight: 16,
+      mediaAspect: 9 / 16,
+      cameraHeightM: 1.5,
+    };
+
+    let visualSaveTimer = null;
+    let sharedViewSaveTimer = null;
+    let cameraHeightSaveTimer = null;
+    let visualConfigDirtyUntil = 0;
+    let sharedViewDirtyUntil = 0;
+    let cameraHeightDirtyUntil = 0;
+
+    function clamp(value, min, max) {
+      return Math.max(min, Math.min(max, value));
+    }
+
+    function isFiniteNumber(value) {
+      return typeof value === 'number' && Number.isFinite(value);
+    }
+
+    function valueOf(input) {
+      return parseFloat(input.value || '0') || 0;
+    }
+
+    function activeIs(el) {
+      return document.activeElement === el;
+    }
+
+    function controlIsFocused(list) {
+      const active = document.activeElement;
+      return !!active && list.includes(active);
+    }
+
+    function editingVisualConfig() {
+      return controlIsFocused([
+        controls.roomWidth,
+        controls.minDepth,
+        controls.maxDepth,
+        controls.trackingDepthRel,
+        controls.personHeight,
+        controls.personWidth,
+        controls.heightScale,
+        controls.widthScale,
+        controls.mediaScale,
+        controls.offsetX,
+        controls.offsetY,
+        controls.bottomOffset,
+        controls.fov,
+        controls.flipDepth,
+        controls.particlesEnabled,
+        controls.particlesPreset,
+        controls.particlesCount,
+        controls.particlesSize,
+        controls.particlesOpacity,
+        controls.particlesSpeed,
+        controls.particlesLife,
+      ]);
+    }
+
+    function editingSharedViewConfig() {
+      return controlIsFocused([
+        controls.viewCamYaw,
+        controls.viewCamPitch,
+        controls.viewCamDist,
+        controls.viewTargetX,
+        controls.viewTargetY,
+        controls.viewTargetZ,
+      ]);
+    }
+
+    function resizeCanvas() {
+      const dpr = window.devicePixelRatio || 1;
+      const width = Math.floor(window.innerWidth * dpr);
+      const height = Math.floor(window.innerHeight * dpr);
+      if (canvas.width !== width || canvas.height !== height) {
+        canvas.width = width;
+        canvas.height = height;
+      }
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.scale(dpr, dpr);
+    }
+
+    window.addEventListener('resize', resizeCanvas, { passive: true });
+    resizeCanvas();
+
+    mediaTemplate.addEventListener('loadedmetadata', () => {
+      if (mediaTemplate.videoWidth > 0 && mediaTemplate.videoHeight > 0) {
+        state.mediaWidth = mediaTemplate.videoWidth;
+        state.mediaHeight = mediaTemplate.videoHeight;
+        state.mediaAspect = mediaTemplate.videoWidth / mediaTemplate.videoHeight;
+      }
+    });
+    try { mediaTemplate.load(); } catch (_) {}
+
+    function getVisualConfig() {
+      const minDepth = Math.max(0.15, valueOf(controls.minDepth));
+      const maxDepth = Math.max(minDepth + 0.1, valueOf(controls.maxDepth));
+      return {
+        roomWidth: Math.max(1, valueOf(controls.roomWidth)),
+        minDepth,
+        maxDepth,
+        trackingMaxDepthRel: clamp(valueOf(controls.trackingDepthRel), 0, 1),
+        cameraHeight: Math.max(0.1, state.cameraHeightM || valueOf(controls.cameraHeight)),
+        personHeight: Math.max(0.4, valueOf(controls.personHeight)),
+        personWidth: Math.max(0.1, valueOf(controls.personWidth)),
+        heightScale: Math.max(0.2, valueOf(controls.heightScale)),
+        widthScale: Math.max(0.2, valueOf(controls.widthScale)),
+        mediaScale: Math.max(0.1, valueOf(controls.mediaScale)),
+        offsetX: valueOf(controls.offsetX),
+        offsetY: valueOf(controls.offsetY),
+        bottomOffset: valueOf(controls.bottomOffset),
+        fov: Math.max(35, Math.min(130, valueOf(controls.fov))),
+        flipDepth: controls.flipDepth.checked,
+        particlesPreset: controls.particlesPreset.value || 'classic',
+        particlesLife: Math.max(0.1, valueOf(controls.particlesLife) || 2.8),
+      };
+    }
+
+    function getSharedViewConfig() {
+      return {
+        yawDeg: valueOf(controls.viewCamYaw),
+        pitchDeg: valueOf(controls.viewCamPitch),
+        distance: Math.max(0.2, valueOf(controls.viewCamDist)),
+        targetX: valueOf(controls.viewTargetX),
+        targetY: valueOf(controls.viewTargetY),
+        targetZ: valueOf(controls.viewTargetZ),
+      };
+    }
+
+    function canApplyField(el, dirtyUntil, force = false) {
+      if (activeIs(el)) return false;
+      if (!force && performance.now() < dirtyUntil) return false;
+      return true;
+    }
+
+    function setInputValueIfAllowed(el, value, dirtyUntil, force = false) {
+      if (!canApplyField(el, dirtyUntil, force)) return;
+      el.value = String(value);
+    }
+
+    function setCheckboxValueIfAllowed(el, value, dirtyUntil, force = false) {
+      if (!canApplyField(el, dirtyUntil, force)) return;
+      el.checked = !!value;
+    }
+
+    function setSelectValueIfAllowed(el, value, dirtyUntil, force = false) {
+      if (!canApplyField(el, dirtyUntil, force)) return;
+      el.value = String(value);
+    }
+
+    function applyVisualConfig(cfg, force = false) {
+      if (!cfg || typeof cfg !== 'object') return;
+      if (!force && (performance.now() < visualConfigDirtyUntil || editingVisualConfig())) return;
+      if (cfg.room_width_m !== undefined) setInputValueIfAllowed(controls.roomWidth, cfg.room_width_m, visualConfigDirtyUntil, force);
+      if (cfg.min_depth_m !== undefined) setInputValueIfAllowed(controls.minDepth, cfg.min_depth_m, visualConfigDirtyUntil, force);
+      if (cfg.max_depth_m !== undefined) setInputValueIfAllowed(controls.maxDepth, cfg.max_depth_m, visualConfigDirtyUntil, force);
+      if (cfg.tracking_max_depth_rel !== undefined) setInputValueIfAllowed(controls.trackingDepthRel, cfg.tracking_max_depth_rel, visualConfigDirtyUntil, force);
+      if (cfg.person_height_m !== undefined) setInputValueIfAllowed(controls.personHeight, cfg.person_height_m, visualConfigDirtyUntil, force);
+      if (cfg.person_width_m !== undefined) setInputValueIfAllowed(controls.personWidth, cfg.person_width_m, visualConfigDirtyUntil, force);
+      if (cfg.height_scale !== undefined) setInputValueIfAllowed(controls.heightScale, cfg.height_scale, visualConfigDirtyUntil, force);
+      if (cfg.width_scale !== undefined) setInputValueIfAllowed(controls.widthScale, cfg.width_scale, visualConfigDirtyUntil, force);
+      if (cfg.media_scale !== undefined) setInputValueIfAllowed(controls.mediaScale, cfg.media_scale, visualConfigDirtyUntil, force);
+      if (cfg.offset_x_px !== undefined) setInputValueIfAllowed(controls.offsetX, cfg.offset_x_px, visualConfigDirtyUntil, force);
+      if (cfg.offset_y_px !== undefined) setInputValueIfAllowed(controls.offsetY, cfg.offset_y_px, visualConfigDirtyUntil, force);
+      if (cfg.bottom_offset_px !== undefined) setInputValueIfAllowed(controls.bottomOffset, cfg.bottom_offset_px, visualConfigDirtyUntil, force);
+      if (cfg.fov_deg !== undefined) setInputValueIfAllowed(controls.fov, cfg.fov_deg, visualConfigDirtyUntil, force);
+      if (cfg.flip_depth !== undefined) setCheckboxValueIfAllowed(controls.flipDepth, cfg.flip_depth, visualConfigDirtyUntil, force);
+      if (cfg.particles_enabled !== undefined) setCheckboxValueIfAllowed(controls.particlesEnabled, cfg.particles_enabled, visualConfigDirtyUntil, force);
+      if (cfg.particles_preset !== undefined) setSelectValueIfAllowed(controls.particlesPreset, cfg.particles_preset, visualConfigDirtyUntil, force);
+      if (cfg.particles_count !== undefined) setInputValueIfAllowed(controls.particlesCount, cfg.particles_count, visualConfigDirtyUntil, force);
+      if (cfg.particles_size_px !== undefined) setInputValueIfAllowed(controls.particlesSize, cfg.particles_size_px, visualConfigDirtyUntil, force);
+      if (cfg.particles_opacity !== undefined) setInputValueIfAllowed(controls.particlesOpacity, cfg.particles_opacity, visualConfigDirtyUntil, force);
+      if (cfg.particles_speed !== undefined) setInputValueIfAllowed(controls.particlesSpeed, cfg.particles_speed, visualConfigDirtyUntil, force);
+      if (cfg.particles_life !== undefined) setInputValueIfAllowed(controls.particlesLife, cfg.particles_life, visualConfigDirtyUntil, force);
+    }
+
+    function applySharedViewConfig(cfg, force = false) {
+      if (!cfg || typeof cfg !== 'object') return;
+      if (!force && (performance.now() < sharedViewDirtyUntil || editingSharedViewConfig())) return;
+      if (cfg.content_yaw_deg !== undefined) setInputValueIfAllowed(controls.viewCamYaw, cfg.content_yaw_deg, sharedViewDirtyUntil, force);
+      if (cfg.content_pitch_deg !== undefined) setInputValueIfAllowed(controls.viewCamPitch, cfg.content_pitch_deg, sharedViewDirtyUntil, force);
+      if (cfg.content_distance_m !== undefined) setInputValueIfAllowed(controls.viewCamDist, cfg.content_distance_m, sharedViewDirtyUntil, force);
+      if (cfg.content_target_x_m !== undefined) setInputValueIfAllowed(controls.viewTargetX, cfg.content_target_x_m, sharedViewDirtyUntil, force);
+      if (cfg.content_target_y_m !== undefined) setInputValueIfAllowed(controls.viewTargetY, cfg.content_target_y_m, sharedViewDirtyUntil, force);
+      if (cfg.content_target_z_m !== undefined) setInputValueIfAllowed(controls.viewTargetZ, cfg.content_target_z_m, sharedViewDirtyUntil, force);
+    }
+
+    async function saveVisualConfig() {
+      visualConfigDirtyUntil = performance.now() + 2200;
+      const payload = {
+        room_width_m: valueOf(controls.roomWidth),
+        min_depth_m: valueOf(controls.minDepth),
+        max_depth_m: valueOf(controls.maxDepth),
+        tracking_max_depth_rel: clamp(valueOf(controls.trackingDepthRel), 0, 1),
+        person_height_m: valueOf(controls.personHeight),
+        person_width_m: valueOf(controls.personWidth),
+        height_scale: valueOf(controls.heightScale),
+        width_scale: valueOf(controls.widthScale),
+        media_scale: valueOf(controls.mediaScale),
+        offset_x_px: valueOf(controls.offsetX),
+        offset_y_px: valueOf(controls.offsetY),
+        bottom_offset_px: valueOf(controls.bottomOffset),
+        fov_deg: valueOf(controls.fov),
+        flip_depth: controls.flipDepth.checked,
+        particles_enabled: controls.particlesEnabled.checked,
+        particles_preset: controls.particlesPreset.value || 'classic',
+        particles_count: Math.round(valueOf(controls.particlesCount)),
+        particles_size_px: valueOf(controls.particlesSize),
+        particles_opacity: valueOf(controls.particlesOpacity),
+        particles_speed: valueOf(controls.particlesSpeed),
+        particles_life: Math.max(0.1, valueOf(controls.particlesLife) || 2.8),
+      };
+      try {
+        const res = await fetch('/api/visual-config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        visualConfigDirtyUntil = 0;
+        applyVisualConfig((data && data.visual_config) || payload, true);
+      } catch (_) {}
+    }
+
+    function scheduleVisualConfigSave() {
+      visualConfigDirtyUntil = performance.now() + 2200;
+      if (visualSaveTimer) clearTimeout(visualSaveTimer);
+      visualSaveTimer = setTimeout(() => {
+        visualSaveTimer = null;
+        saveVisualConfig();
+      }, 260);
+    }
+
+    function flushVisualConfigSave() {
+      if (visualSaveTimer) {
+        clearTimeout(visualSaveTimer);
+        visualSaveTimer = null;
+      }
+      saveVisualConfig();
+    }
+
+    async function saveSharedViewConfig() {
+      sharedViewDirtyUntil = performance.now() + 2200;
+      const payload = {
+        content_yaw_deg: valueOf(controls.viewCamYaw),
+        content_pitch_deg: valueOf(controls.viewCamPitch),
+        content_distance_m: valueOf(controls.viewCamDist),
+        content_target_x_m: valueOf(controls.viewTargetX),
+        content_target_y_m: valueOf(controls.viewTargetY),
+        content_target_z_m: valueOf(controls.viewTargetZ),
+      };
+      try {
+        const res = await fetch('/api/view-config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        sharedViewDirtyUntil = 0;
+        applySharedViewConfig((data && data.view_config) || payload, true);
+      } catch (_) {}
+    }
+
+    function scheduleSharedViewConfigSave() {
+      sharedViewDirtyUntil = performance.now() + 2200;
+      if (sharedViewSaveTimer) clearTimeout(sharedViewSaveTimer);
+      sharedViewSaveTimer = setTimeout(() => {
+        sharedViewSaveTimer = null;
+        saveSharedViewConfig();
+      }, 260);
+    }
+
+    async function saveCameraHeight() {
+      cameraHeightDirtyUntil = performance.now() + 2200;
+      const payload = { camera_height_m: Math.max(0.1, valueOf(controls.cameraHeight)) };
+      state.cameraHeightM = payload.camera_height_m;
+      try {
+        const res = await fetch('/api/camera-height', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (isFiniteNumber(data && data.camera_height_m)) {
+          state.cameraHeightM = Math.max(0.1, Number(data.camera_height_m));
+          if (!activeIs(controls.cameraHeight)) {
+            controls.cameraHeight.value = state.cameraHeightM.toFixed(2);
+          }
+        }
+        cameraHeightDirtyUntil = 0;
+      } catch (_) {}
+    }
+
+    function scheduleCameraHeightSave() {
+      state.cameraHeightM = Math.max(0.1, valueOf(controls.cameraHeight));
+      cameraHeightDirtyUntil = performance.now() + 2200;
+      if (cameraHeightSaveTimer) clearTimeout(cameraHeightSaveTimer);
+      cameraHeightSaveTimer = setTimeout(() => {
+        cameraHeightSaveTimer = null;
+        saveCameraHeight();
+      }, 260);
+    }
+
+    async function loadVisualConfig() {
+      try {
+        const res = await fetch('/api/visual-config');
+        const data = await res.json();
+        applyVisualConfig(data && data.visual_config ? data.visual_config : null, true);
+      } catch (_) {}
+    }
+
+    function updateStatus() {
+      const age = performance.now() - state.lastMessageAt;
+      const stale = age > 1500;
+      const connected = state.connected && !stale;
+      statusDot.classList.toggle('ok', connected);
+      statusTitle.textContent = connected ? 'Conectado' : 'Desconectado';
+      const ready = state.planeReady ? 'plano OK' : 'sin plano';
+      statusMeta.textContent = `${state.cameraName} · ${state.latestCount} personas · ${ready}`;
+    }
+
+    [
+      controls.roomWidth,
+      controls.minDepth,
+      controls.maxDepth,
+      controls.trackingDepthRel,
+      controls.personHeight,
+      controls.personWidth,
+      controls.heightScale,
+      controls.widthScale,
+      controls.mediaScale,
+      controls.offsetX,
+      controls.offsetY,
+      controls.bottomOffset,
+      controls.fov,
+      controls.flipDepth,
+      controls.particlesEnabled,
+      controls.particlesPreset,
+      controls.particlesCount,
+      controls.particlesSize,
+      controls.particlesOpacity,
+      controls.particlesSpeed,
+      controls.particlesLife,
+    ].forEach((el) => {
+      const eventName = el.type === 'checkbox' || el.type === 'range' || el.tagName === 'SELECT' ? 'input' : 'change';
+      el.addEventListener(eventName, scheduleVisualConfigSave);
+      if (eventName !== 'input') el.addEventListener('input', scheduleVisualConfigSave);
+      if (el.tagName === 'SELECT') el.addEventListener('change', scheduleVisualConfigSave);
+    });
+
+    controls.particlesCount.addEventListener('change', flushVisualConfigSave);
+
+    window.addEventListener('pagehide', flushVisualConfigSave);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') flushVisualConfigSave();
+    });
+
+    controls.cameraHeight.addEventListener('input', scheduleCameraHeightSave);
+    controls.cameraHeight.addEventListener('change', scheduleCameraHeightSave);
+
+    [
+      controls.viewCamYaw,
+      controls.viewCamPitch,
+      controls.viewCamDist,
+      controls.viewTargetX,
+      controls.viewTargetY,
+      controls.viewTargetZ,
+    ].forEach((el) => {
+      el.addEventListener('input', scheduleSharedViewConfigSave);
+      el.addEventListener('change', scheduleSharedViewConfigSave);
+    });
+
+    function connect() {
+      const scheme = location.protocol === 'https:' ? 'wss' : 'ws';
+      const ws = new WebSocket(`${scheme}://${location.host}/ws/positions`);
+      state.ws = ws;
+
+      ws.onopen = () => {
+        state.connected = true;
+        state.lastMessageAt = performance.now();
+        updateStatus();
+      };
+
+      ws.onclose = () => {
+        state.connected = false;
+        updateStatus();
+        setTimeout(connect, 2000);
+      };
+
+      ws.onerror = () => {
+        try { ws.close(); } catch (_) {}
+      };
+
+      ws.onmessage = (event) => {
+        let data;
+        try {
+          data = JSON.parse(event.data);
+        } catch {
+          return;
+        }
+        if (data.type !== 'positions') return;
+
+        state.lastMessageAt = performance.now();
+        state.cameraName = data.camera_name || 'Camera';
+        state.planeReady = Boolean(data.plane_ready);
+        state.latestCount = Array.isArray(data.people) ? data.people.length : 0;
+
+        applySharedViewConfig(data.view_config || null);
+        applyVisualConfig(data.visual_config || null);
+
+        if (
+          isFiniteNumber(data.camera_height_m) &&
+          performance.now() >= cameraHeightDirtyUntil &&
+          !activeIs(controls.cameraHeight)
+        ) {
+          state.cameraHeightM = Math.max(0.1, Number(data.camera_height_m));
+          controls.cameraHeight.value = state.cameraHeightM.toFixed(2);
+        }
+
+        const incomingIds = new Set();
+        const now = performance.now();
+        for (const payload of data.people || []) {
+          const id = Number(payload.id ?? 0);
+          incomingIds.add(id);
+          const current = state.people.get(id) || {
+            id,
+            displayU: isFiniteNumber(payload.u) ? payload.u : 0.5,
+            displayV: isFiniteNumber(payload.v) ? payload.v : 0.5,
+            targetU: isFiniteNumber(payload.u) ? payload.u : 0.5,
+            targetV: isFiniteNumber(payload.v) ? payload.v : 0.5,
+            displayX: isFiniteNumber(payload.x) ? payload.x : 0,
+            displayY: isFiniteNumber(payload.y) ? payload.y : 0,
+            displayZ: isFiniteNumber(payload.z) ? payload.z : 0,
+            targetX: isFiniteNumber(payload.x) ? payload.x : null,
+            targetY: isFiniteNumber(payload.y) ? payload.y : null,
+            targetZ: isFiniteNumber(payload.z) ? payload.z : null,
+            lastSeen: now,
+          };
+          if (isFiniteNumber(payload.u)) current.targetU = payload.u;
+          if (isFiniteNumber(payload.v)) current.targetV = payload.v;
+          if (isFiniteNumber(payload.x)) current.targetX = payload.x;
+          if (isFiniteNumber(payload.y)) current.targetY = payload.y;
+          if (isFiniteNumber(payload.z)) current.targetZ = payload.z;
+          current.lastSeen = now;
+          state.people.set(id, current);
+        }
+
+        for (const [id, person] of state.people) {
+          if (!incomingIds.has(id) && performance.now() - person.lastSeen > 700) {
+            state.people.delete(id);
+          }
+        }
+
+        updateStatus();
+      };
+    }
+
+    function computeMediaRect(projectedRect, mediaScale) {
+      const mediaWidth = Math.max(1, state.mediaWidth || 9);
+      const mediaHeight = Math.max(1, state.mediaHeight || 16);
+      const fitScale = Math.min(
+        projectedRect.rectWidth / mediaWidth,
+        projectedRect.rectHeight / mediaHeight,
+      );
+      const drawWidth = Math.max(1, mediaWidth * fitScale * mediaScale);
+      const drawHeight = Math.max(1, mediaHeight * fitScale * mediaScale);
+      return {
+        mediaWidth: drawWidth,
+        mediaHeight: drawHeight,
+        mediaX: projectedRect.centerPx - drawWidth * 0.5,
+        mediaY: projectedRect.feetY - drawHeight,
+      };
+    }
+
+    function projectPerson(person, cfg, width, height) {
+      const u = clamp(person.displayU, 0, 1);
+      const vRaw = clamp(person.displayV, 0, 1);
+      const v = cfg.flipDepth ? 1 - vRaw : vRaw;
+      const worldX = (u - 0.5) * cfg.roomWidth;
+      const worldZ = cfg.minDepth + v * (cfg.maxDepth - cfg.minDepth);
+      const focal = (width * 0.5) / Math.tan((cfg.fov * Math.PI / 180) * 0.5);
+      const horizonY = height * 0.52;
+      const centerX = width * 0.5;
+      const feetY = horizonY + focal * (cfg.cameraHeight / worldZ) + cfg.bottomOffset;
+      const bodyHeightM = cfg.personHeight * cfg.heightScale;
+      const bodyWidthM = cfg.personWidth * cfg.widthScale;
+      const headY = horizonY + focal * ((cfg.cameraHeight - bodyHeightM) / worldZ) + cfg.bottomOffset;
+      const centerPx = centerX + focal * (worldX / worldZ) + cfg.offsetX;
+      const rectWidth = Math.max(8, focal * (bodyWidthM / worldZ));
+      const rectHeight = Math.max(12, feetY - headY);
+      const mediaRect = computeMediaRect({ rectWidth, rectHeight, centerPx, feetY }, cfg.mediaScale);
+      return {
+        id: person.id,
+        depth: worldZ,
+        x: centerPx - rectWidth / 2,
+        y: headY + cfg.offsetY,
+        width: rectWidth,
+        height: rectHeight,
+        centerX: centerPx,
+        feetY: feetY + cfg.offsetY,
+        mediaX: mediaRect.mediaX,
+        mediaY: mediaRect.mediaY + cfg.offsetY,
+        mediaWidth: mediaRect.mediaWidth,
+        mediaHeight: mediaRect.mediaHeight,
+      };
+    }
+
+    function drawBackground(width, height, cfg) {
+      const grad = ctx.createLinearGradient(0, 0, 0, height);
+      grad.addColorStop(0, '#0d1522');
+      grad.addColorStop(0.48, '#0b1018');
+      grad.addColorStop(1, '#020305');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, width, height);
+
+      const horizonY = height * 0.52;
+      const centerX = width * 0.5;
+      const focal = (width * 0.5) / Math.tan((cfg.fov * Math.PI / 180) * 0.5);
+
+      ctx.strokeStyle = 'rgba(120, 170, 255, 0.10)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(0, horizonY);
+      ctx.lineTo(width, horizonY);
+      ctx.stroke();
+
+      for (let depth = cfg.minDepth; depth <= cfg.maxDepth; depth += 1) {
+        const y = horizonY + focal * (cfg.cameraHeight / depth);
+        const spread = focal * ((cfg.roomWidth * 0.5) / depth);
+        ctx.strokeStyle = depth % 2 < 1 ? 'rgba(120, 170, 255, 0.12)' : 'rgba(120, 170, 255, 0.06)';
+        ctx.beginPath();
+        ctx.moveTo(centerX - spread, y);
+        ctx.lineTo(centerX + spread, y);
+        ctx.stroke();
+      }
+
+      for (let x = -cfg.roomWidth * 0.5; x <= cfg.roomWidth * 0.5 + 0.001; x += 1) {
+        ctx.strokeStyle = 'rgba(120, 170, 255, 0.08)';
+        ctx.beginPath();
+        ctx.moveTo(centerX + focal * (x / cfg.minDepth), horizonY + focal * (cfg.cameraHeight / cfg.minDepth));
+        ctx.lineTo(centerX + focal * (x / cfg.maxDepth), horizonY + focal * (cfg.cameraHeight / cfg.maxDepth));
+        ctx.stroke();
+      }
+
+      const cutoffRelRaw = clamp(cfg.trackingMaxDepthRel, 0, 1);
+      const cutoffRel = cfg.flipDepth ? 1 - cutoffRelRaw : cutoffRelRaw;
+      const cutoffDepth = cfg.minDepth + cutoffRel * (cfg.maxDepth - cfg.minDepth);
+      const leftCut = centerX - focal * ((cfg.roomWidth * 0.5) / cutoffDepth);
+      const rightCut = centerX + focal * ((cfg.roomWidth * 0.5) / cutoffDepth);
+      const cutY = horizonY + focal * (cfg.cameraHeight / cutoffDepth);
+      const farLeft = centerX - focal * ((cfg.roomWidth * 0.5) / cfg.maxDepth);
+      const farRight = centerX + focal * ((cfg.roomWidth * 0.5) / cfg.maxDepth);
+      const farY = horizonY + focal * (cfg.cameraHeight / cfg.maxDepth);
+
+      ctx.save();
+      ctx.fillStyle = 'rgba(255, 90, 90, 0.08)';
+      ctx.beginPath();
+      ctx.moveTo(leftCut, cutY);
+      ctx.lineTo(rightCut, cutY);
+      ctx.lineTo(farRight, farY);
+      ctx.lineTo(farLeft, farY);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.strokeStyle = 'rgba(255, 110, 110, 0.96)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(leftCut, cutY);
+      ctx.lineTo(rightCut, cutY);
+      ctx.stroke();
+
+      ctx.fillStyle = 'rgba(255, 220, 220, 0.96)';
+      ctx.font = '700 12px Segoe UI';
+      ctx.textAlign = 'center';
+      ctx.fillText('Límite tracking', centerX, cutY - 10);
+      ctx.restore();
+    }
+
+    function roundRect(context, x, y, width, height, radius) {
+      const r = Math.min(radius, width / 2, height / 2);
+      context.beginPath();
+      context.moveTo(x + r, y);
+      context.arcTo(x + width, y, x + width, y + height, r);
+      context.arcTo(x + width, y + height, x, y + height, r);
+      context.arcTo(x, y + height, x, y, r);
+      context.arcTo(x, y, x + width, y, r);
+      context.closePath();
+    }
+
+    function drawPerson(projected) {
+      const hue = (projected.id * 67) % 360;
+      const fill = `hsla(${hue}, 82%, 60%, 0.18)`;
+      const stroke = `hsla(${hue}, 92%, 68%, 0.92)`;
+      const glow = `hsla(${hue}, 100%, 70%, 0.22)`;
+      const radius = Math.min(18, projected.mediaWidth * 0.2);
+
+      ctx.shadowColor = glow;
+      ctx.shadowBlur = 18;
+      ctx.fillStyle = fill;
+      ctx.strokeStyle = stroke;
+      ctx.lineWidth = 2;
+      roundRect(ctx, projected.mediaX, projected.mediaY, projected.mediaWidth, projected.mediaHeight, radius);
+      ctx.fill();
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+
+      ctx.fillStyle = stroke;
+      ctx.font = '700 13px Segoe UI';
+      ctx.textAlign = 'center';
+      ctx.fillText(`#${projected.id}`, projected.centerX, projected.mediaY - 8);
+    }
+
+    function animate() {
+      resizeCanvas();
+
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+      const now = performance.now();
+      const cfg = getVisualConfig();
+
+      drawBackground(width, height, cfg);
+      const projected = [];
+      for (const [id, person] of state.people) {
+        const alpha = Math.min(0.22, (now - person.lastSeen) < 200 ? 0.16 : 0.08);
+        person.displayU += (person.targetU - person.displayU) * alpha;
+        person.displayV += (person.targetV - person.displayV) * alpha;
+        if (isFiniteNumber(person.targetX)) person.displayX += (person.targetX - person.displayX) * alpha;
+        if (isFiniteNumber(person.targetY)) person.displayY += (person.targetY - person.displayY) * alpha;
+        if (isFiniteNumber(person.targetZ)) person.displayZ += (person.targetZ - person.displayZ) * alpha;
+
+        if (now - person.lastSeen > 1600) {
+          state.people.delete(id);
+          continue;
+        }
+        projected.push(projectPerson(person, cfg, width, height));
+      }
+
+      projected.sort((a, b) => b.depth - a.depth);
+      for (const item of projected) drawPerson(item);
+
+      updateStatus();
+      requestAnimationFrame(animate);
+    }
+
+    state.cameraHeightM = valueOf(controls.cameraHeight);
+    loadVisualConfig();
+    connect();
+    requestAnimationFrame(animate);
+  </script>
+</body>
+</html>

@@ -265,6 +265,7 @@
       connected: false,
       people: new Map(),
       cameraHeightM: 1.5,
+      screenHeightM: 2.0,
       planeReady: false,
     };
 
@@ -410,6 +411,9 @@
         if (typeof msg.camera_height_m === 'number' && Number.isFinite(msg.camera_height_m)) {
           state.cameraHeightM = Math.max(0.1, msg.camera_height_m);
         }
+        if (msg.screen_config && typeof msg.screen_config === 'object' && Number.isFinite(Number(msg.screen_config.height_m))) {
+          state.screenHeightM = Math.max(0.2, Number(msg.screen_config.height_m));
+        }
         applyVisualConfig(msg.visual_config || null);
 
         const incomingIds = new Set();
@@ -470,18 +474,19 @@
     }
 
     function projectPerson(person, width, height) {
+      const projectionHeightM = Math.max(0.2, state.screenHeightM || 2.0);
       const u = Math.max(0, Math.min(1, person.displayU));
       const vRaw = Math.max(0, Math.min(1, person.displayV));
       const v = cfg.flipDepth ? 1 - vRaw : vRaw;
       const worldX = (u - 0.5) * cfg.roomWidth;
       const worldZ = cfg.minDepth + v * (cfg.maxDepth - cfg.minDepth);
       const focal = (width * 0.5) / Math.tan((cfg.fov * Math.PI / 180) * 0.5);
-      const horizonY = height * 0.52;
+      const horizonY = 0;
       const centerX = width * 0.5;
-      const feetY = horizonY + focal * (state.cameraHeightM / worldZ) + cfg.bottomOffset;
+      const feetY = horizonY + focal * (projectionHeightM / worldZ) + cfg.bottomOffset;
       const bodyHeightM = cfg.personHeight * cfg.heightScale;
       const bodyWidthM = cfg.personWidth * cfg.widthScale;
-      const headY = horizonY + focal * ((state.cameraHeightM - bodyHeightM) / worldZ) + cfg.bottomOffset;
+      const headY = horizonY + focal * ((projectionHeightM - bodyHeightM) / worldZ) + cfg.bottomOffset;
       const centerPx = centerX + focal * (worldX / worldZ) + cfg.offsetX;
       const rectWidth = Math.max(8, focal * (bodyWidthM / worldZ));
       const rectHeight = Math.max(12, feetY - headY);

@@ -19,7 +19,7 @@ except Exception:
     ULTRALYTICS_AVAILABLE = False
 
 
-MODEL_PATH = 'yolov8n.pt'  # Ajustar si es necesario
+MODEL_PATH = 'yolo11s.pt'  # Ajustar si es necesario
 
 # Carga automática de coordenadas desde calibrador.py, o usa el ejemplo por defecto
 _ZONA_FILE = 'zona_coords.json'

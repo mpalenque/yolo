@@ -8,19 +8,21 @@
     /* ── Reset & base ────────────────────────────────────────── */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
-      --bg:        #0d0d0d;
-      --bg2:       #161616;
-      --bg3:       #1e1e1e;
-      --border:    #2a2a2a;
+      --bg:        #091018;
+      --bg2:       #101922;
+      --bg3:       #16222d;
+      --bg4:       #0d141b;
+      --border:    #223241;
       --accent:    #00ff88;
       --accent2:   #00c8ff;
       --danger:    #ff4444;
       --warn:      #ffaa00;
       --txt:       #e8e8e8;
-      --txt2:      #888;
-      --panel:     280px;
-      --radius:    8px;
+      --txt2:      #91a2b3;
+      --panel:     430px;
+      --radius:    12px;
       --font:      'Segoe UI', system-ui, sans-serif;
+      --section-pad: 12px;
     }
     html, body {
       height: 100%; background: var(--bg); color: var(--txt);
@@ -68,7 +70,9 @@
 
     /* ── Video area ──────────────────────────────────────────── */
     .video-wrap {
-      position: relative; overflow: hidden; background: #000;
+      position: relative;
+      overflow: hidden;
+      background: radial-gradient(circle at 50% 20%, #102334 0%, #071018 58%, #030507 100%);
     }
     #stream {
       width: 100%; height: 100%; object-fit: contain;
@@ -97,17 +101,72 @@
     .panel {
       background: var(--bg2);
       border-left: 1px solid var(--border);
-      overflow-y: auto;
-      display: flex; flex-direction: column; gap: 0;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding: 10px;
     }
     .section {
-      padding: 16px;
-      border-bottom: 1px solid var(--border);
+      padding: var(--section-pad);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.02);
     }
     .section-title {
-      font-size: 10px; font-weight: 700; letter-spacing: 1.5px;
+      font-size: 10px; font-weight: 800; letter-spacing: 1.5px;
       text-transform: uppercase; color: var(--txt2);
-      margin-bottom: 12px;
+      margin-bottom: 10px;
+    }
+    .section-subtitle {
+      font-size: 11px;
+      color: var(--txt2);
+      margin-bottom: 8px;
+    }
+    .stack { display: grid; gap: 8px; }
+    .pair-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .triple-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+    }
+    .inline-field {
+      display: grid;
+      gap: 4px;
+      min-width: 0;
+    }
+    .inline-field label {
+      font-size: 10px;
+      color: var(--txt2);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .input,
+    select.input {
+      width: 100%;
+      min-width: 0;
+      background: var(--bg4);
+      border: 1px solid var(--border);
+      color: var(--txt);
+      border-radius: 10px;
+      padding: 7px 9px;
+      font-size: 12px;
+      outline: none;
+    }
+    .action-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+    .link-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
     }
 
     /* ── Stats ───────────────────────────────────────────────── */
@@ -123,10 +182,10 @@
     .stat-value.small { font-size: 13px; color: var(--txt); word-break:break-all; }
 
     /* ── Fuente ──────────────────────────────────────────────── */
-    .source-options { display: flex; flex-direction: column; gap: 6px; }
+    .source-options { display: grid; gap: 8px; }
     .source-btn {
       display: flex; align-items: center; gap: 10px;
-      padding: 9px 12px; border-radius: var(--radius);
+      padding: 8px 10px; border-radius: 10px;
       border: 1px solid var(--border); background: var(--bg3);
       color: var(--txt); font-size: 13px; cursor: pointer;
       transition: border-color .15s, background .15s;
@@ -140,24 +199,26 @@
 
     /* ── Upload drag & drop ──────────────────────────────────── */
     #drop-zone {
-      border: 2px dashed var(--border); border-radius: var(--radius);
-      padding: 16px; text-align: center;
+      border: 1px dashed var(--border); border-radius: 10px;
+      padding: 9px 10px; text-align: center;
       color: var(--txt2); font-size: 12px; cursor: pointer;
       transition: border-color .2s, background .2s;
     }
     #drop-zone:hover, #drop-zone.drag-over {
       border-color: var(--accent2); background: #0d1f2a; color: var(--txt);
     }
-    #drop-zone .icon { font-size: 22px; margin-bottom: 6px; }
+    #drop-zone.compact .icon { font-size: 16px; margin-bottom: 2px; }
+    #drop-zone.compact { min-height: 58px; }
     #file-input { display: none; }
 
     /* ── Botones de zona ─────────────────────────────────────── */
     .btn-row { display: flex; gap: 8px; }
     .btn {
-      flex: 1; padding: 9px 10px; border-radius: var(--radius);
+      flex: 1; padding: 8px 10px; border-radius: 10px;
       border: 1px solid var(--border); background: var(--bg3);
       color: var(--txt); font-size: 12px; font-weight: 600;
       cursor: pointer; transition: all .15s; text-align: center;
+      text-decoration: none;
     }
     .btn:hover           { filter: brightness(1.3); }
     .btn.primary         { border-color: var(--accent); color: var(--accent); background: #002a18; }
@@ -167,11 +228,35 @@
     /* ── Info calibración ────────────────────────────────────── */
     .calib-info {
       background: var(--bg3); border: 1px solid var(--border);
-      border-radius: var(--radius); padding: 10px 12px;
-      font-size: 12px; color: var(--txt2); line-height: 1.6;
+      border-radius: 10px; padding: 9px 10px;
+      font-size: 12px; color: var(--txt2); line-height: 1.5;
     }
     .calib-info b { color: var(--accent); }
     #pt-count { color: var(--accent); font-weight: 700; }
+
+    .advanced {
+      padding: 0;
+      overflow: hidden;
+    }
+    .advanced summary {
+      cursor: pointer;
+      list-style: none;
+      padding: 12px;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--txt2);
+    }
+    .advanced summary::-webkit-details-marker {
+      display: none;
+    }
+    .advanced-body {
+      display: grid;
+      gap: 10px;
+      padding: 0 12px 12px;
+      border-top: 1px solid var(--border);
+    }
 
     /* ── Toast ───────────────────────────────────────────────── */
     #toast {
@@ -185,7 +270,7 @@
     #toast.show { opacity: 1; }
 
     /* ── Webcam list ─────────────────────────────────────────── */
-    #webcam-list { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+    #webcam-list { display: grid; gap: 6px; margin-top: 2px; }
 
     /* ── Scrollbar ───────────────────────────────────────────── */
     ::-webkit-scrollbar      { width: 5px; }
@@ -214,8 +299,6 @@
 
   <!-- ── Panel lateral ── -->
   <aside class="panel">
-
-    <!-- Stats -->
     <div class="section">
       <div class="section-title">En tiempo real</div>
       <div class="stat-grid">
@@ -235,100 +318,25 @@
       </div>
     </div>
 
-    <!-- Fuente -->
     <div class="section">
-      <div class="section-title">Fuente de video</div>
-      <div class="source-options">
-
-        <button class="source-btn" id="btn-tapo" onclick="selectSource('tapo')">
-          <span class="icon">📡</span>
-          <div>
-            <div class="lbl">Cámara Tapo</div>
-            <div class="sub">RTSP — 192.168.0.96</div>
-          </div>
-        </button>
-
-        <button class="source-btn" id="btn-webcam" onclick="toggleWebcams()">
-          <span class="icon">🎥</span>
-          <div>
-            <div class="lbl">Webcam</div>
-            <div class="sub">Escanear en servidor</div>
-          </div>
-        </button>
-
-        <button class="source-btn" id="btn-simulate" onclick="toggleSimulation()">
-          <span class="icon">🧍</span>
-          <div>
-            <div class="lbl">Simular personas</div>
-            <div class="sub" id="sim-status-sub">Servidor envía posiciones fake</div>
-          </div>
-        </button>
-        <div id="webcam-list" style="display:none"></div>
-
-        <div style="display:flex;flex-direction:column;gap:6px;margin-top:4px">
-          <input id="custom-source" placeholder="RTSP / URL / índice (ej: 0)"
-            style="width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--txt);
-                   border-radius:var(--radius);padding:8px 10px;font-size:12px;outline:none" />
-          <button class="btn" onclick="applyCustomSource()">Aplicar fuente manual</button>
+      <div class="section-title">Zona y ArUco</div>
+      <div class="pair-grid">
+        <div class="calib-info">
+          <b>Zona de tracking</b><br>
+          <span id="pt-count">0</span> puntos
         </div>
-
-        <!-- Drop zone -->
-        <div id="drop-zone" onclick="document.getElementById('file-input').click()">
-          <div class="icon">🎞</div>
-          <div>Arrastrá un video aquí</div>
-          <div style="font-size:10px;margin-top:4px;color:var(--txt2)">o hacé clic para elegir archivo</div>
+        <div class="calib-info">
+          <b>Plano ArUco</b><br>
+          <span id="plane-ready">No</span>
         </div>
-        <input type="file" id="file-input" accept="video/*" />
-
-      </div>
-    </div>
-
-    <!-- Modelo -->
-    <div class="section">
-      <div class="section-title">Modelo YOLO</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px" id="model-grid">
-        <button class="btn" id="mdl-yolo11n" onclick="setModel('yolo11n.pt')" title="~80 FPS — más rápido">11n<br><span style="font-size:9px;color:var(--txt2)">~80 FPS</span></button>
-        <button class="btn" id="mdl-yolo11s" onclick="setModel('yolo11s.pt')" title="~55 FPS">11s<br><span style="font-size:9px;color:var(--txt2)">~55 FPS</span></button>
-        <button class="btn primary" id="mdl-yolo11m" onclick="setModel('yolo11m.pt')" title="~40 FPS — recomendado">11m<br><span style="font-size:9px">~40 FPS ★</span></button>
-        <button class="btn" id="mdl-yolo11l" onclick="setModel('yolo11l.pt')" title="~25 FPS — más preciso">11l<br><span style="font-size:9px;color:var(--txt2)">~25 FPS</span></button>
-      </div>
-      <div style="display:flex;align-items:center;gap:8px;">
-        <span style="font-size:11px;color:var(--txt2);white-space:nowrap">Res. inferencia</span>
-        <select id="imgsz-select" onchange="setImgsz(this.value)"
-          style="flex:1;background:var(--bg3);border:1px solid var(--border);color:var(--txt);
-                 border-radius:var(--radius);padding:5px 8px;font-size:12px;cursor:pointer">
-          <option value="480">480 px — más rápido</option>
-          <option value="640" selected>640 px — balance</option>
-          <option value="960">960 px — más preciso</option>
-        </select>
-      </div>
-    </div>
-
-    <!-- Calibración: zona + plano -->
-    <div class="section">
-      <div class="section-title">Calibración espacial</div>
-      <div class="calib-info">
-        <b>Modo edición:</b> <span id="edit-mode-label">Zona detección</span><br>
-        Zona (>=3): <span id="pt-count">0</span> | Plano (4): <span id="plane-pt-count">0</span><br>
-        Plano listo: <span id="plane-ready">No</span>
       </div>
       <div class="btn-row" style="margin-top:10px">
         <button class="btn primary" id="btn-edit-zone" onclick="setEditMode('zone')">Editar zona</button>
-        <button class="btn" id="btn-edit-plane" onclick="setEditMode('plane')">Editar plano</button>
+        <button class="btn danger" onclick="resetZone()">Recalibrar zona</button>
       </div>
-      <div class="btn-row" style="margin-top:10px">
-        <button class="btn" id="btn-undo" onclick="undoPoint()">↩ Deshacer zona</button>
+      <div class="btn-row" style="margin-top:8px">
+        <button class="btn" id="btn-undo" onclick="undoPoint()">↩ Deshacer punto</button>
         <button class="btn primary" id="btn-confirm" onclick="confirmZone()">✓ Confirmar zona</button>
-      </div>
-      <div class="btn-row" style="margin-top:8px">
-        <button class="btn danger" onclick="resetZone()">✕ Reiniciar zona</button>
-      </div>
-      <div class="btn-row" style="margin-top:8px">
-        <button class="btn" onclick="undoPlanePoint()">↩ Deshacer plano</button>
-        <button class="btn primary" onclick="confirmPlane()">✓ Confirmar plano</button>
-      </div>
-      <div class="btn-row" style="margin-top:8px">
-        <button class="btn danger" onclick="resetPlane()">✕ Reiniciar plano</button>
       </div>
       <div class="btn-row" style="margin-top:8px">
         <label class="btn" style="display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;">
@@ -336,114 +344,154 @@
           Espejo horizontal
         </label>
       </div>
-      <div class="btn-row" style="margin-top:8px">
-        <a class="btn" href="/content.html" target="_blank" rel="noopener">Abrir página de contenido</a>
-        <a class="btn" href="/visual.html" target="_blank" rel="noopener">Abrir visual LED</a>
-        <a class="btn" href="/fullscreen" target="_blank" rel="noopener">Abrir fullscreen</a>
-        <a class="btn" href="/fullscreen2" target="_blank" rel="noopener">Abrir fullscreen2</a>
-      </div>
       <div class="calib-info" style="margin-top:10px">
-        <b>Auto plano con ArUco</b><br>
-        Marker ID: <input id="aruco-id" type="number" min="0" max="49" value="0"
-          style="width:64px;background:var(--bg2);border:1px solid var(--border);color:var(--txt);border-radius:6px;padding:3px 6px;margin:0 6px" />
-        Lado (mm): <input id="aruco-mm" type="number" min="20" value="120"
-          style="width:78px;background:var(--bg2);border:1px solid var(--border);color:var(--txt);border-radius:6px;padding:3px 6px;margin-left:6px" />
-        Altura cámara (cm): <input id="cam-height-cm" type="number" min="20" value="94"
-          style="width:78px;background:var(--bg2);border:1px solid var(--border);color:var(--txt);border-radius:6px;padding:3px 6px;margin-left:6px" />
-        <br><span id="aruco-status" style="font-size:11px;color:var(--txt2)">Aruco inactivo</span>
-        <br><span id="aruco-quality" style="font-size:11px;color:var(--txt2)">Calidad: 0/100 (rojo)</span>
+        <b>Estado ArUco</b><br>
+        <span id="aruco-status">Aruco inactivo</span><br>
+        <span id="aruco-quality">Calidad: 0/100 (rojo)</span>
       </div>
-      <div class="btn-row" style="margin-top:8px">
+      <div class="triple-grid" style="margin-top:10px">
+        <div class="inline-field">
+          <label for="aruco-id">Marker ID</label>
+          <input class="input" id="aruco-id" type="number" min="0" max="49" value="0" onchange="saveMarkerSpec()" />
+        </div>
+        <div class="inline-field">
+          <label for="aruco-mm">Lado (mm)</label>
+          <input class="input" id="aruco-mm" type="number" min="20" value="120" onchange="saveMarkerSpec()" />
+        </div>
+        <div class="inline-field">
+          <label for="cam-height-cm">Altura cam (cm)</label>
+          <input class="input" id="cam-height-cm" type="number" min="20" value="94" onchange="saveCameraHeight()" />
+        </div>
+      </div>
+      <div class="action-grid" style="margin-top:10px">
         <button class="btn" onclick="openArucoPage()">Abrir marcador</button>
-        <button class="btn" onclick="saveMarkerSpec()">Guardar spec</button>
-      </div>
-      <div class="btn-row" style="margin-top:8px">
-        <button class="btn" onclick="saveCameraHeight()">Guardar altura cámara</button>
-      </div>
-      <div class="btn-row" style="margin-top:8px">
         <button class="btn" onclick="startAutoPlane()">Iniciar auto</button>
         <button class="btn primary" onclick="confirmAutoPlane()">Confirmar auto</button>
-      </div>
-      <div class="btn-row" style="margin-top:8px">
         <button class="btn danger" onclick="stopAutoPlane()">Detener auto</button>
       </div>
     </div>
 
     <div class="section">
-      <div class="section-title">Pantalla LED (Screen)</div>
-      <div class="calib-info">
-        X (m): <input id="screen-x" type="number" step="0.1" value="0"
-          style="width:68px;background:var(--bg2);border:1px solid var(--border);color:var(--txt);border-radius:6px;padding:3px 6px;margin:0 6px" />
-        Z (m): <input id="screen-z" type="number" step="0.1" value="1.2"
-          style="width:68px;background:var(--bg2);border:1px solid var(--border);color:var(--txt);border-radius:6px;padding:3px 6px;margin:0 6px" />
-        Yaw (°): <input id="screen-yaw" type="number" step="1" value="0"
-          style="width:68px;background:var(--bg2);border:1px solid var(--border);color:var(--txt);border-radius:6px;padding:3px 6px;margin-left:6px" />
-        <br>
-        Width (m): <input id="screen-w" type="number" step="0.1" value="3.5"
-          style="width:78px;background:var(--bg2);border:1px solid var(--border);color:var(--txt);border-radius:6px;padding:3px 6px;margin:0 6px" />
-        Height (m): <input id="screen-h" type="number" step="0.1" value="2.0"
-          style="width:78px;background:var(--bg2);border:1px solid var(--border);color:var(--txt);border-radius:6px;padding:3px 6px;margin:0 6px" />
-      </div>
-      <div class="btn-row" style="margin-top:8px">
-        <label class="btn" style="display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;">
-          <input type="checkbox" id="screen-enabled" checked />
-          Screen visible
-        </label>
-        <button class="btn primary" onclick="saveScreenConfig()">Guardar screen</button>
-      </div>
-    </div>
-
-    <div class="section">
-      <div class="section-title">Cámara compartida (/content)</div>
-      <div class="calib-info">
-        Yaw (°): <input id="view-cam-yaw" type="number" step="0.1" value="45"
-          style="width:72px;background:var(--bg2);border:1px solid var(--border);color:var(--txt);border-radius:6px;padding:3px 6px;margin:0 6px" />
-        Pitch (°): <input id="view-cam-pitch" type="number" step="0.1" value="37.2"
-          style="width:72px;background:var(--bg2);border:1px solid var(--border);color:var(--txt);border-radius:6px;padding:3px 6px;margin:0 6px" />
-        Dist (m): <input id="view-cam-dist" type="number" step="0.1" value="4.6"
-          style="width:72px;background:var(--bg2);border:1px solid var(--border);color:var(--txt);border-radius:6px;padding:3px 6px;margin-left:6px" />
-        <br>
-        Target X: <input id="view-target-x" type="number" step="0.1" value="0"
-          style="width:72px;background:var(--bg2);border:1px solid var(--border);color:var(--txt);border-radius:6px;padding:3px 6px;margin:0 6px" />
-        Y: <input id="view-target-y" type="number" step="0.1" value="0.25"
-          style="width:72px;background:var(--bg2);border:1px solid var(--border);color:var(--txt);border-radius:6px;padding:3px 6px;margin:0 6px" />
-        Z: <input id="view-target-z" type="number" step="0.1" value="0"
-          style="width:72px;background:var(--bg2);border:1px solid var(--border);color:var(--txt);border-radius:6px;padding:3px 6px;margin-left:6px" />
-      </div>
-      <div class="btn-row" style="margin-top:8px">
-        <button class="btn primary" onclick="saveSharedViewConfig()">Guardar cámara compartida</button>
-      </div>
-    </div>
-
-    <!-- Confianza -->
-    <div class="section">
-      <div class="section-title">Detección</div>
+      <div class="section-title">Confianza mínima</div>
       <div class="calib-info" style="margin-bottom:10px">
-        <b>Confianza mínima:</b> <span id="conf-val">35%</span><br>
-        <span style="font-size:10px">Subila si hay falsos positivos</span>
+        <b>Detección activa:</b> <span id="conf-val">35%</span><br>
+        <span style="font-size:10px">El valor se aplica al mover el slider</span>
       </div>
       <input type="range" id="conf-slider" min="5" max="85" value="35"
         style="width:100%;accent-color:var(--accent);cursor:pointer"
-        oninput="onConfChange(this.value)" onchange="sendConf(this.value)" />
-      <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--txt2);margin-top:2px">
-        <span>5% — más detección</span><span>85% — más preciso</span>
+        oninput="onConfChange(this.value)" onchange="sendConf(this.value, true)" />
+      <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--txt2);margin-top:4px">
+        <span>5% — más detección</span><span>85% — más filtro</span>
       </div>
       <div class="btn-row" style="margin-top:10px">
         <button class="btn" onclick="setPerfProfile('balanced')">Balanced</button>
-        <button class="btn primary" onclick="setPerfProfile('turbo')">Turbo 3090</button>
+        <button class="btn primary" onclick="setPerfProfile('turbo')">Turbo</button>
       </div>
     </div>
 
-    <!-- Atajos -->
-    <div class="section" style="border-bottom:none; flex:1">
-      <div class="section-title">Atajos</div>
-      <div class="calib-info">
-        <b>Clic en video</b> → agregar punto<br>
-        <b>Editar zona</b> → filtro detección<br>
-        <b>Editar plano</b> → coordenadas espaciales<br>
-        <b>Contenido</b> → abrir /content.html
+    <details class="section advanced">
+      <summary>Avanzado</summary>
+      <div class="advanced-body">
+        <div class="stack">
+          <div class="section-subtitle">Fuente de video</div>
+          <div class="source-options">
+            <button class="source-btn" id="btn-tapo" onclick="selectSource('tapo')">
+              <span class="icon">📡</span>
+              <div>
+                <div class="lbl">Cámara Tapo</div>
+                <div class="sub">RTSP — 192.168.0.96</div>
+              </div>
+            </button>
+            <div class="pair-grid">
+              <button class="source-btn" id="btn-webcam" onclick="toggleWebcams()">
+                <span class="icon">🎥</span>
+                <div>
+                  <div class="lbl">Webcams</div>
+                  <div class="sub">Escanear servidor</div>
+                </div>
+              </button>
+              <button class="source-btn" id="btn-simulate" onclick="toggleSimulation()">
+                <span class="icon">🧍</span>
+                <div>
+                  <div class="lbl">Simular</div>
+                  <div class="sub" id="sim-status-sub">Servidor envía posiciones fake</div>
+                </div>
+              </button>
+            </div>
+            <div id="webcam-list" style="display:none"></div>
+            <div class="pair-grid">
+              <input class="input" id="custom-source" placeholder="RTSP / URL / índice (ej: 0)" />
+              <button class="btn" onclick="applyCustomSource()">Aplicar fuente</button>
+            </div>
+            <div id="drop-zone" class="compact" onclick="document.getElementById('file-input').click()">
+              <div class="icon">🎞</div>
+              <div>Video de testeo</div>
+              <div style="font-size:10px;color:var(--txt2)">Arrastrá o hacé clic</div>
+            </div>
+            <input type="file" id="file-input" accept="video/*" />
+          </div>
+        </div>
+
+        <div class="stack">
+          <div class="section-subtitle">Modelo YOLO</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px" id="model-grid">
+            <button class="btn" id="mdl-yolo11n" onclick="setModel('yolo11n.pt')" title="~80 FPS — más rápido">11n<br><span style="font-size:9px;color:var(--txt2)">~80 FPS</span></button>
+            <button class="btn primary" id="mdl-yolo11s" onclick="setModel('yolo11s.pt')" title="~55 FPS — default">11s<br><span style="font-size:9px">~55 FPS ★</span></button>
+            <button class="btn" id="mdl-yolo11m" onclick="setModel('yolo11m.pt')" title="~40 FPS — más preciso">11m<br><span style="font-size:9px;color:var(--txt2)">~40 FPS</span></button>
+            <button class="btn" id="mdl-yolo11l" onclick="setModel('yolo11l.pt')" title="~25 FPS — más preciso">11l<br><span style="font-size:9px;color:var(--txt2)">~25 FPS</span></button>
+          </div>
+          <div class="inline-field">
+            <label for="imgsz-select">Resolución de inferencia</label>
+            <select class="input" id="imgsz-select" onchange="setImgsz(this.value)">
+              <option value="480">480 px — más rápido</option>
+              <option value="640" selected>640 px — balance</option>
+              <option value="960">960 px — más preciso</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="stack">
+          <div class="section-subtitle">Pantalla LED</div>
+          <div class="triple-grid">
+            <div class="inline-field"><label for="screen-x">X (m)</label><input class="input" id="screen-x" type="number" step="0.1" value="0" onchange="saveScreenConfig()" /></div>
+            <div class="inline-field"><label for="screen-z">Z (m)</label><input class="input" id="screen-z" type="number" step="0.1" value="1.2" onchange="saveScreenConfig()" /></div>
+            <div class="inline-field"><label for="screen-yaw">Yaw (°)</label><input class="input" id="screen-yaw" type="number" step="1" value="0" onchange="saveScreenConfig()" /></div>
+          </div>
+          <div class="pair-grid">
+            <div class="inline-field"><label for="screen-w">Width (m)</label><input class="input" id="screen-w" type="number" step="0.1" value="3.5" onchange="saveScreenConfig()" /></div>
+            <div class="inline-field"><label for="screen-h">Height (m)</label><input class="input" id="screen-h" type="number" step="0.1" value="2.0" onchange="saveScreenConfig()" /></div>
+          </div>
+          <label class="btn" style="display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;">
+            <input type="checkbox" id="screen-enabled" checked onchange="saveScreenConfig()" />
+            Screen visible
+          </label>
+        </div>
+
+        <div class="stack">
+          <div class="section-subtitle">Cámara compartida</div>
+          <div class="triple-grid">
+            <div class="inline-field"><label for="view-cam-yaw">Yaw (°)</label><input class="input" id="view-cam-yaw" type="number" step="0.1" value="45" onchange="saveSharedViewConfig()" /></div>
+            <div class="inline-field"><label for="view-cam-pitch">Pitch (°)</label><input class="input" id="view-cam-pitch" type="number" step="0.1" value="37.2" onchange="saveSharedViewConfig()" /></div>
+            <div class="inline-field"><label for="view-cam-dist">Dist (m)</label><input class="input" id="view-cam-dist" type="number" step="0.1" value="4.6" onchange="saveSharedViewConfig()" /></div>
+          </div>
+          <div class="triple-grid">
+            <div class="inline-field"><label for="view-target-x">Target X</label><input class="input" id="view-target-x" type="number" step="0.1" value="0" onchange="saveSharedViewConfig()" /></div>
+            <div class="inline-field"><label for="view-target-y">Target Y</label><input class="input" id="view-target-y" type="number" step="0.1" value="0.25" onchange="saveSharedViewConfig()" /></div>
+            <div class="inline-field"><label for="view-target-z">Target Z</label><input class="input" id="view-target-z" type="number" step="0.1" value="0" onchange="saveSharedViewConfig()" /></div>
+          </div>
+        </div>
+
+        <div class="stack">
+          <div class="section-subtitle">Vistas</div>
+          <div class="link-grid">
+            <a class="btn" href="/preview.html" target="_blank" rel="noopener">Abrir preview</a>
+            <a class="btn" href="/configuracion.html" target="_blank" rel="noopener">Abrir configuración</a>
+            <a class="btn" href="/fullscreen" target="_blank" rel="noopener">Abrir fullscreen</a>
+            <a class="btn" href="/salida.html" target="_blank" rel="noopener">Abrir salida</a>
+          </div>
+        </div>
       </div>
-    </div>
+    </details>
 
   </aside>
 </div>
@@ -460,6 +508,8 @@ let planePoints = [];
 let calibMode = true;  // true por defecto hasta recibir estado del servidor
 let wsReady = false;
 let editMode = "zone";
+let confDebounceTimer = null;
+let lastSentConf = null;
 
 function connectWS() {
   const wsProto = location.protocol === "https:" ? "wss" : "ws";
@@ -515,6 +565,7 @@ function handleStats(msg) {
     const pct = Math.round(msg.conf * 100);
     document.getElementById("conf-val").textContent = pct + "%";
     document.getElementById("conf-slider").value = pct;
+    lastSentConf = String(pct);
   }
 
   const pill  = document.getElementById("mode-pill");
@@ -526,7 +577,7 @@ function handleStats(msg) {
 
   calibMode = (mode === "CALIBRANDO");
   const vw = document.getElementById("video-wrap");
-  vw.classList.toggle("calib-cursor", calibMode || editMode === "plane");
+  vw.classList.toggle("calib-cursor", calibMode);
 
   if (msg.plane_ready !== undefined) {
     document.getElementById("plane-ready").textContent = msg.plane_ready ? "Sí" : "No";
@@ -559,7 +610,6 @@ function handleZone(msg) {
   frameW = msg.fw || frameW;
   frameH = msg.fh || frameH;
   document.getElementById("pt-count").textContent = zonePoints.length;
-  document.getElementById("plane-pt-count").textContent = planePoints.length;
   if (msg.mirror_x !== undefined) {
     document.getElementById("mirror-toggle").checked = !!msg.mirror_x;
   }
@@ -616,16 +666,8 @@ function handleAck(msg) {
     document.getElementById("pt-count").textContent = zonePoints.length;
     renderZoneSVG();
   }
-  if (msg.action === "add_plane_point" || msg.action === "undo_plane_point") {
-    planePoints = msg.plane_points || [];
-    document.getElementById("plane-pt-count").textContent = planePoints.length;
-    renderZoneSVG();
-  }
   if (msg.action === "confirm_zone") {
     toast(msg.msg, msg.ok ? "var(--accent)" : "var(--danger)");
-  }
-  if (msg.action === "confirm_plane") {
-    toast(msg.msg, msg.ok ? "var(--accent2)" : "var(--danger)");
   }
   if (
     msg.action === "set_source" ||
@@ -644,11 +686,6 @@ function handleAck(msg) {
   if (msg.action === "reset_zone") {
     zonePoints = [];
     document.getElementById("pt-count").textContent = 0;
-    renderZoneSVG();
-  }
-  if (msg.action === "reset_plane") {
-    planePoints = [];
-    document.getElementById("plane-pt-count").textContent = 0;
     renderZoneSVG();
   }
 }
@@ -742,7 +779,7 @@ window.addEventListener("resize", renderZoneSVG);
 
 // ── Click en video → agregar punto ───────────────────────────────────────────
 document.getElementById("video-wrap").addEventListener("click", (e) => {
-  if (editMode === "zone" && !calibMode) {
+  if (!calibMode) {
     toast("Primero reiniciá la zona para calibrar", "var(--warn)");
     return;
   }
@@ -776,8 +813,7 @@ document.getElementById("video-wrap").addEventListener("click", (e) => {
 
   if (fx < 0 || fy < 0 || fx > iw || fy > ih) return;
 
-    const action = editMode === "plane" ? "add_plane_point" : "add_point";
-    send({ action,
+    send({ action: "add_point",
       x: fx, y: fy,
       fw: iw, fh: ih,
       dw: iw, dh: ih });
@@ -903,7 +939,7 @@ async function uploadFile(file) {
 }
 
 // ── Zona ──────────────────────────────────────────────────────────────────────
-let currentModel = "yolo11m.pt";
+let currentModel = "yolo11s.pt";
 let currentImgsz = 640;
 
 function setModel(name) {
@@ -920,15 +956,10 @@ function setImgsz(val) {
 function undoPoint()   { send({ action: "undo_point" }); }
 function confirmZone() { send({ action: "confirm_zone" }); }
 function resetZone()   { send({ action: "reset_zone" }); }
-function undoPlanePoint() { send({ action: "undo_plane_point" }); }
-function confirmPlane() { send({ action: "confirm_plane" }); }
-function resetPlane() { send({ action: "reset_plane" }); }
 
 function setEditMode(mode) {
-  editMode = mode === "plane" ? "plane" : "zone";
-  document.getElementById("edit-mode-label").textContent = editMode === "plane" ? "Plano de superficie" : "Zona detección";
-  document.getElementById("btn-edit-zone").classList.toggle("primary", editMode === "zone");
-  document.getElementById("btn-edit-plane").classList.toggle("primary", editMode === "plane");
+  editMode = "zone";
+  document.getElementById("btn-edit-zone").classList.add("primary");
 }
 
 function toggleMirror(checked) {
@@ -1006,13 +1037,18 @@ function stopAutoPlane() {
   send({ action: "stop_auto_plane" });
 }
 
-let confTimer;
 function onConfChange(v) {
   document.getElementById("conf-val").textContent = v + "%";
+  clearTimeout(confDebounceTimer);
+  confDebounceTimer = setTimeout(() => sendConf(v, false), 120);
 }
-function sendConf(v) {
-  send({ action: "set_conf", conf: parseFloat(v) / 100 });
-  toast(`Confianza: ${v}%`);
+function sendConf(v, showToast = true) {
+  const raw = String(v);
+  if (!raw) return;
+  if (lastSentConf === raw && !showToast) return;
+  lastSentConf = raw;
+  send({ action: "set_conf", conf: parseFloat(raw) / 100 });
+  if (showToast) toast(`Confianza: ${raw}%`);
 }
 
 function setPerfProfile(profile) {

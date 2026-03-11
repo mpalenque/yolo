@@ -36,7 +36,7 @@ except ImportError:
     ULTRALYTICS_AVAILABLE = False
 
 # ── Constantes ─────────────────────────────────────────────────────────────────
-MODEL_PATH   = "yolov8n.pt"
+MODEL_PATH   = "yolo11s.pt"
 ZONA_FILE    = "zona_coords.json"
 MAX_PUNTOS   = 40           # máximo de puntos de rastro por persona
 WINDOW       = "Tracking Audiencia"

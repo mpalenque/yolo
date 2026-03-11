@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Fullscreen 2 — Three.js</title>
+  <title>Salida</title>
   <style>
     :root {
       --stage-left: 0px;
@@ -32,18 +32,6 @@
 
     video {
       display: none;
-    }
-
-    .viewport-frame {
-      position: fixed;
-      top: var(--stage-top);
-      left: var(--stage-left);
-      width: var(--stage-width);
-      height: var(--stage-height);
-      border: 1px solid rgba(255, 255, 255, 0.28);
-      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
-      pointer-events: none;
-      z-index: 10;
     }
 
     .viewport-controls {
@@ -97,7 +85,6 @@
   </style>
 </head>
 <body>
-  <div class="viewport-frame" aria-hidden="true"></div>
   <div class="viewport-controls">
     <label for="vp-x">X</label>
     <input id="vp-x" type="number" min="0" max="10000" step="1" />
@@ -128,7 +115,7 @@
       return Math.max(min, Math.min(max, raw));
     }
 
-    const VIEWPORT_STORAGE_KEY = 'yolo.fullscreen2.viewport';
+    const VIEWPORT_STORAGE_KEY = 'yolo.salida.viewport';
 
     function loadViewport() {
       const params = new URLSearchParams(window.location.search);
@@ -196,6 +183,7 @@
       people: new Map(),
       planeReady: false,
       cameraHeightM: 1.5,
+      screenHeightM: 2.0,
       lastFrameAtMs: 0,
       visualConfig: {
         room_width_m: 8.0,
@@ -639,18 +627,19 @@
       const width = viewport.width;
       const height = viewport.height;
       const cfg = state.visualConfig;
+      const projectionHeightM = Math.max(0.2, state.screenHeightM || 2.0);
       const u = clamp(person.displayU, 0, 1);
       const vRaw = clamp(person.displayV, 0, 1);
       const v = cfg.flip_depth ? 1 - vRaw : vRaw;
       const worldX = (u - 0.5) * cfg.room_width_m;
       const worldZ = cfg.min_depth_m + v * (cfg.max_depth_m - cfg.min_depth_m);
       const focal = (width * 0.5) / Math.tan((cfg.fov_deg * Math.PI / 180) * 0.5);
-      const horizonY = height * 0.52;
+      const horizonY = 0;
       const centerX = width * 0.5;
-      const feetY = horizonY + focal * (state.cameraHeightM / worldZ) + cfg.bottom_offset_px;
+      const feetY = horizonY + focal * (projectionHeightM / worldZ) + cfg.bottom_offset_px;
       const bodyHeightM = cfg.person_height_m * cfg.height_scale;
       const bodyWidthM = cfg.person_width_m * cfg.width_scale;
-      const headY = horizonY + focal * ((state.cameraHeightM - bodyHeightM) / worldZ) + cfg.bottom_offset_px;
+      const headY = horizonY + focal * ((projectionHeightM - bodyHeightM) / worldZ) + cfg.bottom_offset_px;
       const centerPx = centerX + focal * (worldX / worldZ) + cfg.offset_x_px;
       const rectWidth = Math.max(8, focal * (bodyWidthM / worldZ));
       const rectHeight = Math.max(12, feetY - headY);
@@ -825,6 +814,9 @@
         state.planeReady = !!msg.plane_ready;
         if (typeof msg.camera_height_m === 'number' && Number.isFinite(msg.camera_height_m)) {
           state.cameraHeightM = Math.max(0.1, msg.camera_height_m);
+        }
+        if (msg.screen_config && typeof msg.screen_config === 'object' && Number.isFinite(Number(msg.screen_config.height_m))) {
+          state.screenHeightM = Math.max(0.2, Number(msg.screen_config.height_m));
         }
         applyVisualConfig(msg.visual_config || null);
 

@@ -65,12 +65,17 @@ async def index():
     return HTMLResponse("<h1>index.html no encontrado en static/</h1>", status_code=500)
 
 
-@app.get("/content.html", response_class=HTMLResponse)
-async def content_page():
-    html_file = STATIC_DIR / "content.html"
+def _serve_static_html(filename: str):
+    html_file = STATIC_DIR / filename
     if html_file.exists():
         return HTMLResponse(content=html_file.read_text("utf-8"))
-    return HTMLResponse("<h1>content.html no encontrado en static/</h1>", status_code=500)
+    return HTMLResponse(f"<h1>{filename} no encontrado en static/</h1>", status_code=500)
+
+
+@app.get("/preview.html", response_class=HTMLResponse)
+@app.get("/content.html", response_class=HTMLResponse)
+async def preview_page():
+    return _serve_static_html("preview.html")
 
 
 @app.get("/aruco.html", response_class=HTMLResponse)
@@ -81,12 +86,10 @@ async def aruco_page():
     return HTMLResponse("<h1>aruco.html no encontrado en static/</h1>", status_code=500)
 
 
+@app.get("/configuracion.html", response_class=HTMLResponse)
 @app.get("/visual.html", response_class=HTMLResponse)
-async def visual_page():
-    html_file = STATIC_DIR / "visual.html"
-    if html_file.exists():
-        return HTMLResponse(content=html_file.read_text("utf-8"))
-    return HTMLResponse("<h1>visual.html no encontrado en static/</h1>", status_code=500)
+async def configuracion_page():
+    return _serve_static_html("configuracion.html")
 
 
 @app.get("/fullscreen", response_class=HTMLResponse)
@@ -97,12 +100,10 @@ async def fullscreen_page():
     return HTMLResponse("<h1>fullscreen.html no encontrado en static/</h1>", status_code=500)
 
 
+@app.get("/salida.html", response_class=HTMLResponse)
 @app.get("/fullscreen2", response_class=HTMLResponse)
-async def fullscreen2_page():
-    html_file = STATIC_DIR / "fullscreen2.html"
-    if html_file.exists():
-        return HTMLResponse(content=html_file.read_text("utf-8"))
-    return HTMLResponse("<h1>fullscreen2.html no encontrado en static/</h1>", status_code=500)
+async def salida_page():
+    return _serve_static_html("salida.html")
 
 
 @app.get("/media/visual-loop.mp4")

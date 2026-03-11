@@ -34,7 +34,7 @@ except ImportError:
     ULTRALYTICS_AVAILABLE = False
 
 # -- Constantes --
-MODEL_PATH  = "yolo11n.pt"
+MODEL_PATH  = "yolo11s.pt"
 ZONA_FILE   = "zona_coords.json"
 MAX_PUNTOS  = 40
 RTSP_URL    = "rtsp://mpalenque:madariaga1@192.168.0.96:554/stream1"
@@ -213,6 +213,7 @@ class Tracker:
             self._aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
             self._aruco_params = cv2.aruco.DetectorParameters()
 
+        self._select_default_source()
         self._load_zona()
         # Update stats snapshot with loaded config
         self._flush_stats_snapshot()
@@ -317,6 +318,28 @@ class Tracker:
                 if cap:
                     cap.release()
         return found
+
+    def _select_default_source(self):
+        for webcam_index in range(8):
+            webcam_label = f"Webcam {webcam_index}"
+            cap = self._open_capture(webcam_index)
+            if cap is None or not cap.isOpened():
+                if cap:
+                    cap.release()
+                continue
+            cap.release()
+            self._source = webcam_index
+            self._source_label = webcam_label
+            self._persistent_cap = None
+            self._persistent_cap_source = None
+            print(f"[tracker] Fuente por default: {webcam_label}")
+            return
+
+        self._source = RTSP_URL
+        self._source_label = "Tapo RTSP"
+        self._persistent_cap = None
+        self._persistent_cap_source = None
+        print("[tracker] Sin webcam detectada; usando Tapo RTSP por default")
 
     # -- API publica --
 
@@ -656,9 +679,9 @@ class Tracker:
 
     def set_perf_profile(self, profile):
         profile = (profile or "balanced").lower()
+        new_model = MODEL_PATH
 
         if profile == "turbo":
-            new_model = "yolo11n.pt"
             self._imgsz = 256
             self._conf = 0.35
             self._half = True
@@ -667,7 +690,6 @@ class Tracker:
             self._draw_trails = False
             selected = "turbo"
         else:
-            new_model = "yolo11n.pt"
             self._imgsz = 384
             self._conf = 0.35
             self._half = True

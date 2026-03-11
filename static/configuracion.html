@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Visual LED POV</title>
+  <title>Configuracion</title>
   <style>
     :root {
       --bg: #05070b;
@@ -13,6 +13,10 @@
       --muted: #9fb0c5;
       --accent: #54f2c2;
       --danger: #ff6b6b;
+      --stage-left: 0px;
+      --stage-top: 0px;
+      --stage-width: 1152px;
+      --stage-height: 768px;
     }
 
     * { box-sizing: border-box; }
@@ -29,8 +33,13 @@
 
     canvas {
       display: block;
-      width: 100vw;
-      height: 100vh;
+      position: fixed;
+      top: var(--stage-top);
+      left: var(--stage-left);
+      width: var(--stage-width);
+      height: var(--stage-height);
+      background: #000;
+      box-shadow: 0 24px 80px rgba(0, 0, 0, 0.42);
     }
 
     .hud {
@@ -90,7 +99,7 @@
     .controls {
       top: 16px;
       right: 16px;
-      width: 320px;
+      width: min(560px, calc(100vw - 32px));
       border-radius: 16px;
       overflow: hidden;
     }
@@ -98,9 +107,9 @@
     .controls summary {
       cursor: pointer;
       list-style: none;
-      padding: 14px 16px;
+      padding: 12px 14px;
       font-weight: 700;
-      font-size: 14px;
+      font-size: 13px;
       user-select: none;
       letter-spacing: 0.03em;
     }
@@ -110,23 +119,24 @@
     }
 
     .controls .body {
-      padding: 0 16px 16px;
+      padding: 0 14px 14px;
       display: grid;
-      gap: 12px;
-      max-height: calc(100vh - 90px);
-      overflow: auto;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
     }
 
     .grid {
       display: grid;
-      grid-template-columns: 1fr 92px;
-      gap: 8px 12px;
+      grid-column: 1 / -1;
+      grid-template-columns: minmax(0, 1fr) 84px minmax(0, 1fr) 84px;
+      gap: 7px 10px;
       align-items: center;
     }
 
     label {
       color: var(--muted);
-      font-size: 13px;
+      font-size: 12px;
+      line-height: 1.15;
     }
 
     input[type="number"],
@@ -137,12 +147,17 @@
 
     input[type="number"],
     select {
-      padding: 8px 10px;
-      border-radius: 10px;
+      padding: 7px 8px;
+      border-radius: 9px;
       border: 1px solid rgba(255,255,255,0.1);
       background: rgba(255,255,255,0.04);
       color: var(--text);
       outline: none;
+      min-width: 0;
+    }
+
+    input[type="range"] {
+      accent-color: var(--accent);
     }
 
     select option {
@@ -159,21 +174,21 @@
     .legend {
       left: 16px;
       bottom: 16px;
-      width: 360px;
-      padding: 12px 14px;
+      width: min(320px, calc(100vw - 32px));
+      padding: 10px 12px;
       border-radius: 14px;
     }
 
     .legend h2 {
       margin: 0 0 6px;
-      font-size: 14px;
+      font-size: 13px;
     }
 
     .legend p {
       margin: 0;
       color: var(--muted);
-      font-size: 12px;
-      line-height: 1.45;
+      font-size: 11px;
+      line-height: 1.35;
     }
 
     .badge {
@@ -187,6 +202,48 @@
       font-size: 11px;
       font-weight: 700;
       letter-spacing: 0.04em;
+    }
+
+    .controls .body > button {
+      width: 100%;
+      padding: 9px 10px !important;
+      font-size: 12px;
+    }
+
+    @media (max-width: 1200px), (max-height: 820px) {
+      .controls {
+        width: min(520px, calc(100vw - 24px));
+        top: 12px;
+        right: 12px;
+      }
+
+      .status,
+      .legend {
+        left: 12px;
+      }
+
+      .legend {
+        bottom: 12px;
+      }
+
+      .grid {
+        grid-template-columns: minmax(0, 1fr) 78px minmax(0, 1fr) 78px;
+        gap: 6px 8px;
+      }
+    }
+
+    @media (max-width: 880px) {
+      .controls {
+        width: min(460px, calc(100vw - 20px));
+      }
+
+      .controls .body {
+        grid-template-columns: 1fr;
+      }
+
+      .grid {
+        grid-template-columns: minmax(0, 1fr) 88px;
+      }
     }
 
   </style>
@@ -205,7 +262,7 @@
     </div>
 
     <details class="controls" open>
-      <summary>VISUAL LED POV</summary>
+      <summary>CONFIGURACION VISUAL</summary>
       <div class="body">
         <div class="grid">
           <label for="roomWidth">Ancho sala (m)</label>
@@ -220,7 +277,7 @@
           <label for="trackingDepthRel">Corte tracking fondo</label>
           <input id="trackingDepthRel" type="number" min="0" max="1" step="0.01" value="1" />
 
-          <label for="cameraHeight">Altura pantalla/cámara (m)</label>
+          <label for="cameraHeight">Altura webcam ArUco (m)</label>
           <input id="cameraHeight" type="number" min="0.1" max="5" step="0.01" value="1.5" />
 
           <label for="personHeight">Altura persona (m)</label>
@@ -303,8 +360,8 @@
     <div class="legend">
       <h2>Vista LED</h2>
       <p>
-        La vista principal usa la misma proyección del fullscreen para que el rectángulo placeholder
-        coincida con el frame real del video.
+        Esta vista y Salida usan la altura de la pantalla LED para proyectar la escena.
+        La altura de webcam se conserva aparte y solo se usa para ArUco y calibración.
       </p>
       <div class="badge">/ws/positions → LED</div>
     </div>
@@ -362,6 +419,13 @@
       mediaHeight: 16,
       mediaAspect: 9 / 16,
       cameraHeightM: 1.5,
+      screenHeightM: 2.0,
+      stage: {
+        width: 1152,
+        height: 768,
+        left: 0,
+        top: 0,
+      },
     };
 
     let visualSaveTimer = null;
@@ -429,10 +493,30 @@
       ]);
     }
 
+    const OUTPUT_ASPECT = 1152 / 768;
+
+    function updateStageRect() {
+      let stageWidth = window.innerWidth;
+      let stageHeight = Math.round(stageWidth / OUTPUT_ASPECT);
+      if (stageHeight > window.innerHeight) {
+        stageHeight = window.innerHeight;
+        stageWidth = Math.round(stageHeight * OUTPUT_ASPECT);
+      }
+      state.stage.width = Math.max(64, stageWidth);
+      state.stage.height = Math.max(64, stageHeight);
+      state.stage.left = Math.max(0, Math.round((window.innerWidth - state.stage.width) * 0.5));
+      state.stage.top = Math.max(0, Math.round((window.innerHeight - state.stage.height) * 0.5));
+      document.documentElement.style.setProperty('--stage-left', `${state.stage.left}px`);
+      document.documentElement.style.setProperty('--stage-top', `${state.stage.top}px`);
+      document.documentElement.style.setProperty('--stage-width', `${state.stage.width}px`);
+      document.documentElement.style.setProperty('--stage-height', `${state.stage.height}px`);
+    }
+
     function resizeCanvas() {
+      updateStageRect();
       const dpr = window.devicePixelRatio || 1;
-      const width = Math.floor(window.innerWidth * dpr);
-      const height = Math.floor(window.innerHeight * dpr);
+      const width = Math.floor(state.stage.width * dpr);
+      const height = Math.floor(state.stage.height * dpr);
       if (canvas.width !== width || canvas.height !== height) {
         canvas.width = width;
         canvas.height = height;
@@ -777,6 +861,9 @@
           state.cameraHeightM = Math.max(0.1, Number(data.camera_height_m));
           controls.cameraHeight.value = state.cameraHeightM.toFixed(2);
         }
+        if (data.screen_config && typeof data.screen_config === 'object' && Number.isFinite(Number(data.screen_config.height_m))) {
+          state.screenHeightM = Math.max(0.2, Number(data.screen_config.height_m));
+        }
 
         const incomingIds = new Set();
         const now = performance.now();
@@ -834,18 +921,19 @@
     }
 
     function projectPerson(person, cfg, width, height) {
+      const projectionHeightM = Math.max(0.2, state.screenHeightM || 2.0);
       const u = clamp(person.displayU, 0, 1);
       const vRaw = clamp(person.displayV, 0, 1);
       const v = cfg.flipDepth ? 1 - vRaw : vRaw;
       const worldX = (u - 0.5) * cfg.roomWidth;
       const worldZ = cfg.minDepth + v * (cfg.maxDepth - cfg.minDepth);
       const focal = (width * 0.5) / Math.tan((cfg.fov * Math.PI / 180) * 0.5);
-      const horizonY = height * 0.52;
+      const horizonY = 0;
       const centerX = width * 0.5;
-      const feetY = horizonY + focal * (cfg.cameraHeight / worldZ) + cfg.bottomOffset;
+      const feetY = horizonY + focal * (projectionHeightM / worldZ) + cfg.bottomOffset;
       const bodyHeightM = cfg.personHeight * cfg.heightScale;
       const bodyWidthM = cfg.personWidth * cfg.widthScale;
-      const headY = horizonY + focal * ((cfg.cameraHeight - bodyHeightM) / worldZ) + cfg.bottomOffset;
+      const headY = horizonY + focal * ((projectionHeightM - bodyHeightM) / worldZ) + cfg.bottomOffset;
       const centerPx = centerX + focal * (worldX / worldZ) + cfg.offsetX;
       const rectWidth = Math.max(8, focal * (bodyWidthM / worldZ));
       const rectHeight = Math.max(12, feetY - headY);
@@ -867,6 +955,7 @@
     }
 
     function drawBackground(width, height, cfg) {
+      const projectionHeightM = Math.max(0.2, state.screenHeightM || 2.0);
       const grad = ctx.createLinearGradient(0, 0, 0, height);
       grad.addColorStop(0, '#0d1522');
       grad.addColorStop(0.48, '#0b1018');
@@ -874,7 +963,7 @@
       ctx.fillStyle = grad;
       ctx.fillRect(0, 0, width, height);
 
-      const horizonY = height * 0.52;
+      const horizonY = 0;
       const centerX = width * 0.5;
       const focal = (width * 0.5) / Math.tan((cfg.fov * Math.PI / 180) * 0.5);
 
@@ -886,7 +975,7 @@
       ctx.stroke();
 
       for (let depth = cfg.minDepth; depth <= cfg.maxDepth; depth += 1) {
-        const y = horizonY + focal * (cfg.cameraHeight / depth);
+        const y = horizonY + focal * (projectionHeightM / depth);
         const spread = focal * ((cfg.roomWidth * 0.5) / depth);
         ctx.strokeStyle = depth % 2 < 1 ? 'rgba(120, 170, 255, 0.12)' : 'rgba(120, 170, 255, 0.06)';
         ctx.beginPath();
@@ -898,8 +987,8 @@
       for (let x = -cfg.roomWidth * 0.5; x <= cfg.roomWidth * 0.5 + 0.001; x += 1) {
         ctx.strokeStyle = 'rgba(120, 170, 255, 0.08)';
         ctx.beginPath();
-        ctx.moveTo(centerX + focal * (x / cfg.minDepth), horizonY + focal * (cfg.cameraHeight / cfg.minDepth));
-        ctx.lineTo(centerX + focal * (x / cfg.maxDepth), horizonY + focal * (cfg.cameraHeight / cfg.maxDepth));
+        ctx.moveTo(centerX + focal * (x / cfg.minDepth), horizonY + focal * (projectionHeightM / cfg.minDepth));
+        ctx.lineTo(centerX + focal * (x / cfg.maxDepth), horizonY + focal * (projectionHeightM / cfg.maxDepth));
         ctx.stroke();
       }
 
@@ -908,10 +997,10 @@
       const cutoffDepth = cfg.minDepth + cutoffRel * (cfg.maxDepth - cfg.minDepth);
       const leftCut = centerX - focal * ((cfg.roomWidth * 0.5) / cutoffDepth);
       const rightCut = centerX + focal * ((cfg.roomWidth * 0.5) / cutoffDepth);
-      const cutY = horizonY + focal * (cfg.cameraHeight / cutoffDepth);
+      const cutY = horizonY + focal * (projectionHeightM / cutoffDepth);
       const farLeft = centerX - focal * ((cfg.roomWidth * 0.5) / cfg.maxDepth);
       const farRight = centerX + focal * ((cfg.roomWidth * 0.5) / cfg.maxDepth);
-      const farY = horizonY + focal * (cfg.cameraHeight / cfg.maxDepth);
+      const farY = horizonY + focal * (projectionHeightM / cfg.maxDepth);
 
       ctx.save();
       ctx.fillStyle = 'rgba(255, 90, 90, 0.08)';
@@ -933,7 +1022,7 @@
       ctx.fillStyle = 'rgba(255, 220, 220, 0.96)';
       ctx.font = '700 12px Segoe UI';
       ctx.textAlign = 'center';
-      ctx.fillText('Límite tracking', centerX, cutY - 10);
+      ctx.fillText('Límite tracking', centerX, Math.max(14, cutY - 10));
       ctx.restore();
     }
 
@@ -974,8 +1063,8 @@
     function animate() {
       resizeCanvas();
 
-      const width = window.innerWidth;
-      const height = window.innerHeight;
+      const width = state.stage.width;
+      const height = state.stage.height;
       const now = performance.now();
       const cfg = getVisualConfig();
 

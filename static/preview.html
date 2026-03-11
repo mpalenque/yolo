@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Content 3D</title>
+  <title>Preview</title>
   <style>
     :root {
       --bg: #050505;
@@ -690,21 +690,6 @@
         ctx.fillText(`Marker ID ${markerId} (calibración)`, markerCenter.x + 8, markerCenter.y - 8);
       }
 
-      const camGround = { x: 0, y: 0, z: -(markerSizeM * 2.0) };
-      const camTop = { x: camGround.x, y: realCameraHeightM, z: camGround.z };
-      drawLine3D(camGround, camTop, basis, width, height, 'rgba(255,80,80,0.95)', 2.5);
-
-      const p = project(camTop, basis, width, height);
-      if (p) {
-        ctx.fillStyle = 'rgba(255,120,120,0.95)';
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, 6, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = '#ffd5d5';
-        ctx.font = '12px Segoe UI';
-        ctx.fillText(`${cameraName} · ${realCameraHeightM.toFixed(2)}m`, p.x + 8, p.y - 8);
-      }
-
       if (screenConfig && screenConfig.enabled) {
         const cx = Number(screenConfig.x_m || 0);
         const z = Number(screenConfig.z_m || 1.2);
@@ -730,6 +715,36 @@
           ctx.fillStyle = 'rgba(190,220,255,0.98)';
           ctx.font = '12px Segoe UI';
           ctx.fillText('SCREEN (LED)', screenCenter.x + 8, screenCenter.y - 8);
+        }
+
+        const cameraMountBase = { x: cx, y: h, z };
+        const cameraMountTop = { x: cx, y: realCameraHeightM, z };
+        drawLine3D(cameraMountBase, cameraMountTop, basis, width, height, 'rgba(255,80,80,0.95)', 2.5);
+
+        const cameraPoint = project(cameraMountTop, basis, width, height);
+        if (cameraPoint) {
+          ctx.fillStyle = 'rgba(255,120,120,0.95)';
+          ctx.beginPath();
+          ctx.arc(cameraPoint.x, cameraPoint.y, 6, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#ffd5d5';
+          ctx.font = '12px Segoe UI';
+          ctx.fillText(`${cameraName} · ${realCameraHeightM.toFixed(2)}m`, cameraPoint.x + 8, cameraPoint.y - 8);
+        }
+      } else {
+        const camGround = { x: 0, y: 0, z: -(markerSizeM * 2.0) };
+        const camTop = { x: camGround.x, y: realCameraHeightM, z: camGround.z };
+        drawLine3D(camGround, camTop, basis, width, height, 'rgba(255,80,80,0.95)', 2.5);
+
+        const p = project(camTop, basis, width, height);
+        if (p) {
+          ctx.fillStyle = 'rgba(255,120,120,0.95)';
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, 6, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#ffd5d5';
+          ctx.font = '12px Segoe UI';
+          ctx.fillText(`${cameraName} · ${realCameraHeightM.toFixed(2)}m`, p.x + 8, p.y - 8);
         }
       }
     }

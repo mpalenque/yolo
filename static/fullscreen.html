@@ -264,8 +264,9 @@
       ws: null,
       connected: false,
       people: new Map(),
-      cameraHeightM: 1.5,
-      screenHeightM: 2.0,
+      cameraHeightM: 3.0,
+      screenHeightM: 3.0,
+      screenWidthM: 4.5,
       planeReady: false,
     };
 
@@ -274,7 +275,7 @@
     }
 
     const cfg = {
-      roomWidth: 8.0,
+      roomWidth: 4.5,
       minDepth: 1.2,
       maxDepth: 12.0,
       personHeight: 1.7,
@@ -414,6 +415,9 @@
         if (msg.screen_config && typeof msg.screen_config === 'object' && Number.isFinite(Number(msg.screen_config.height_m))) {
           state.screenHeightM = Math.max(0.2, Number(msg.screen_config.height_m));
         }
+        if (msg.screen_config && typeof msg.screen_config === 'object' && Number.isFinite(Number(msg.screen_config.width_m))) {
+          state.screenWidthM = Math.max(0.2, Number(msg.screen_config.width_m));
+        }
         applyVisualConfig(msg.visual_config || null);
 
         const incomingIds = new Set();
@@ -424,9 +428,13 @@
           const current = state.people.get(id) || {
             id,
             displayU: typeof person.u === 'number' ? person.u : 0.5,
-            displayV: typeof person.v === 'number' ? person.v : 0.5,
+            displayV: typeof person.depth_rel === 'number' ? person.depth_rel : (typeof person.v === 'number' ? person.v : 0.5),
             targetU: typeof person.u === 'number' ? person.u : 0.5,
-            targetV: typeof person.v === 'number' ? person.v : 0.5,
+            targetV: typeof person.depth_rel === 'number' ? person.depth_rel : (typeof person.v === 'number' ? person.v : 0.5),
+            displayX: typeof person.x === 'number' ? person.x : null,
+            displayZ: typeof person.z === 'number' ? person.z : null,
+            targetX: typeof person.x === 'number' ? person.x : null,
+            targetZ: typeof person.z === 'number' ? person.z : null,
             lastSeen: now,
             lastUpdateAt: now,
             smoothedSpeed: 0,
@@ -443,7 +451,9 @@
             video: null,
           };
           const nextU = typeof person.u === 'number' ? person.u : current.targetU;
-          const nextV = typeof person.v === 'number' ? person.v : current.targetV;
+          const nextV = typeof person.depth_rel === 'number' ? person.depth_rel : (typeof person.v === 'number' ? person.v : current.targetV);
+          const nextX = typeof person.x === 'number' ? person.x : current.targetX;
+          const nextZ = typeof person.z === 'number' ? person.z : current.targetZ;
           const dt = Math.max(0.016, (now - current.lastUpdateAt) / 1000);
           const deltaU = nextU - current.targetU;
           const deltaV = nextV - current.targetV;
@@ -456,9 +466,10 @@
           }
           current.lastUpdateAt = now;
           current.targetU = typeof person.u === 'number' ? person.u : current.targetU;
-          current.targetV = typeof person.v === 'number' ? person.v : current.targetV;
           current.targetU = nextU;
           current.targetV = nextV;
+          current.targetX = nextX;
+          current.targetZ = nextZ;
           current.lastSeen = now;
           ensurePersonVideo(current);
           state.people.set(id, current);
@@ -475,18 +486,21 @@
 
     function projectPerson(person, width, height) {
       const projectionHeightM = Math.max(0.2, state.screenHeightM || 2.0);
+      const projectionWidthM = Math.max(0.2, state.screenWidthM || cfg.roomWidth || 4.5);
       const u = Math.max(0, Math.min(1, person.displayU));
       const vRaw = Math.max(0, Math.min(1, person.displayV));
       const v = cfg.flipDepth ? 1 - vRaw : vRaw;
-      const worldX = (u - 0.5) * cfg.roomWidth;
-      const worldZ = cfg.minDepth + v * (cfg.maxDepth - cfg.minDepth);
+      const hasPhysicalXZ = Number.isFinite(person.displayX) && Number.isFinite(person.displayZ);
+      const worldX = hasPhysicalXZ ? Number(person.displayX) : (u - 0.5) * projectionWidthM;
+      const worldZ = Math.max(0.15, hasPhysicalXZ ? Math.abs(Number(person.displayZ)) : (cfg.minDepth + v * (cfg.maxDepth - cfg.minDepth)));
       const focal = (width * 0.5) / Math.tan((cfg.fov * Math.PI / 180) * 0.5);
       const horizonY = 0;
       const centerX = width * 0.5;
-      const feetY = horizonY + focal * (projectionHeightM / worldZ) + cfg.bottomOffset;
+      const floorSnapPx = 22;
+      const feetY = horizonY + focal * (projectionHeightM / worldZ) + cfg.bottomOffset + floorSnapPx;
       const bodyHeightM = cfg.personHeight * cfg.heightScale;
       const bodyWidthM = cfg.personWidth * cfg.widthScale;
-      const headY = horizonY + focal * ((projectionHeightM - bodyHeightM) / worldZ) + cfg.bottomOffset;
+      const headY = horizonY + focal * ((projectionHeightM - bodyHeightM) / worldZ) + cfg.bottomOffset + floorSnapPx;
       const centerPx = centerX + focal * (worldX / worldZ) + cfg.offsetX;
       const rectWidth = Math.max(8, focal * (bodyWidthM / worldZ));
       const rectHeight = Math.max(12, feetY - headY);
@@ -574,6 +588,12 @@
           const alpha = Math.min(0.24, (now - person.lastSeen) < 180 ? 0.18 : 0.08);
           person.displayU += (person.targetU - person.displayU) * alpha;
           person.displayV += (person.targetV - person.displayV) * alpha;
+          if (Number.isFinite(person.targetX)) {
+            person.displayX = Number.isFinite(person.displayX) ? (person.displayX + (person.targetX - person.displayX) * alpha) : person.targetX;
+          }
+          if (Number.isFinite(person.targetZ)) {
+            person.displayZ = Number.isFinite(person.displayZ) ? (person.displayZ + (person.targetZ - person.displayZ) * alpha) : person.targetZ;
+          }
 
           if (now - person.lastSeen > 1600) {
             disposePersonVideo(person);

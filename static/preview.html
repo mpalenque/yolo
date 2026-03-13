@@ -199,10 +199,10 @@
     let lastPeople = [];
     let planeReady = false;
     let markerSizeM = 0.12;
-    let realCameraHeightM = 0.94;
+    let realCameraHeightM = 3.0;
     let cameraName = 'Camera';
     let markerId = 0;
-    let screenConfig = { enabled: true, x_m: 0.0, z_m: 1.2, width_m: 3.5, height_m: 2.0, yaw_deg: 0.0 };
+    let screenConfig = { enabled: true, x_m: 0.0, z_m: 1.2, width_m: 4.5, height_m: 3.0, yaw_deg: 0.0 };
 
     const camera = {
       yaw: Math.PI / 4,
@@ -513,10 +513,12 @@
     }
 
     function worldFromPlane(u, v) {
+      const screenWidth = Math.max(1.5, Number(screenConfig.width_m || 4.5));
+      const screenZ = Math.max(0.8, Number(screenConfig.z_m || 1.2));
       return {
-        x: (u - 0.5) * 2.0,
+        x: (u - 0.5) * screenWidth,
         y: 0,
-        z: (v - 0.5) * 2.0,
+        z: 0.22 + (v * Math.max(0.25, screenZ - 0.34)),
       };
     }
 
@@ -578,25 +580,40 @@
     }
 
     function drawFloor(basis, width, height) {
-      const step = 0.2;
-      const min = -1;
-      const max = 1;
+      const gridWidth = Math.max(1.0, Number(screenConfig.width_m || 4.5));
+      const gridDepth = Math.max(1.0, Number(screenConfig.height_m || 3.0));
+      const gridCenterX = Number(screenConfig.x_m || 0);
+      const gridCenterZ = Number(screenConfig.z_m || 1.2);
+      const minX = gridCenterX - (gridWidth * 0.5);
+      const maxX = gridCenterX + (gridWidth * 0.5);
+      const minZ = gridCenterZ - (gridDepth * 0.5);
+      const maxZ = gridCenterZ + (gridDepth * 0.5);
+      const step = 0.25;
 
-      for (let t = min; t <= max + 1e-6; t += step) {
-        const major = Math.abs(t) < 1e-6 || Math.abs(Math.abs(t) - 1) < 1e-6;
+      for (let t = minZ; t <= maxZ + 1e-6; t += step) {
+        const nearEdge = Math.abs(t - minZ) < 1e-6 || Math.abs(t - maxZ) < 1e-6;
+        const centerLine = Math.abs(t - gridCenterZ) < (step * 0.5);
+        const major = nearEdge || centerLine;
         const alpha = major ? 0.48 : 0.2;
         drawLine3D(
-          { x: min, y: 0, z: t },
-          { x: max, y: 0, z: t },
+          { x: minX, y: 0, z: t },
+          { x: maxX, y: 0, z: t },
           basis,
           width,
           height,
           `rgba(255,255,255,${alpha})`,
           major ? 2 : 1
         );
+      }
+
+      for (let t = minX; t <= maxX + 1e-6; t += step) {
+        const nearEdge = Math.abs(t - minX) < 1e-6 || Math.abs(t - maxX) < 1e-6;
+        const centerLine = Math.abs(t - gridCenterX) < (step * 0.5);
+        const major = nearEdge || centerLine;
+        const alpha = major ? 0.48 : 0.2;
         drawLine3D(
-          { x: t, y: 0, z: min },
-          { x: t, y: 0, z: max },
+          { x: t, y: 0, z: minZ },
+          { x: t, y: 0, z: maxZ },
           basis,
           width,
           height,
@@ -606,8 +623,8 @@
       }
 
       if (debugEnabled) {
-        drawLine3D({ x: -1.2, y: 0, z: 0 }, { x: 1.2, y: 0, z: 0 }, basis, width, height, 'rgba(0,255,136,0.9)', 2.5);
-        drawLine3D({ x: 0, y: 0, z: -1.2 }, { x: 0, y: 0, z: 1.2 }, basis, width, height, 'rgba(0,200,255,0.9)', 2.5);
+        drawLine3D({ x: minX, y: 0, z: gridCenterZ }, { x: maxX, y: 0, z: gridCenterZ }, basis, width, height, 'rgba(0,255,136,0.9)', 2.5);
+        drawLine3D({ x: gridCenterX, y: 0, z: minZ }, { x: gridCenterX, y: 0, z: maxZ }, basis, width, height, 'rgba(0,200,255,0.9)', 2.5);
       }
     }
 

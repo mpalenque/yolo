@@ -103,7 +103,11 @@ async def fullscreen_page():
 @app.get("/salida.html", response_class=HTMLResponse)
 @app.get("/fullscreen2", response_class=HTMLResponse)
 async def salida_page():
-    return _serve_static_html("salida.html")
+    response = _serve_static_html("salida.html")
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    return response
 
 
 @app.get("/media/visual-loop.mp4")
@@ -152,9 +156,17 @@ async def set_visual_config(request: Request):
 @app.post("/api/camera-height")
 async def set_camera_height_api(request: Request):
     data = await request.json()
-    camera_height_m = float((data or {}).get("camera_height_m", 0.94))
+    camera_height_m = float((data or {}).get("camera_height_m", 3.0))
     tracker.set_camera_height(camera_height_m)
-    return JSONResponse({"ok": True, "camera_height_m": tracker.get_stats().get("camera_height_m", 0.94)})
+    return JSONResponse({"ok": True, "camera_height_m": tracker.get_stats().get("camera_height_m", 3.0)})
+
+
+@app.post("/api/mirror")
+async def set_mirror_api(request: Request):
+    data = await request.json()
+    mirror_x = bool((data or {}).get("mirror_x", False))
+    tracker.set_mirror(mirror_x)
+    return JSONResponse({"ok": True, "mirror_x": tracker.get_stats().get("mirror_x", False)})
 
 
 @app.post("/api/view-config")
@@ -323,7 +335,7 @@ async def websocket_endpoint(ws: WebSocket):
                                     "msg": "Parámetros ArUco guardados"})
 
             elif action == "set_camera_height":
-                tracker.set_camera_height(float(data.get("camera_height_m", 0.94)))
+                tracker.set_camera_height(float(data.get("camera_height_m", 3.0)))
                 await ws.send_json({"type": "ack", "action": action, "ok": True,
                                     "msg": "Altura de cámara guardada"})
 
@@ -332,8 +344,8 @@ async def websocket_endpoint(ws: WebSocket):
                     "enabled": data.get("enabled", True),
                     "x_m": data.get("x_m", 0.0),
                     "z_m": data.get("z_m", 1.2),
-                    "width_m": data.get("width_m", 3.5),
-                    "height_m": data.get("height_m", 2.0),
+                    "width_m": data.get("width_m", 4.5),
+                    "height_m": data.get("height_m", 3.0),
                     "yaw_deg": data.get("yaw_deg", 0.0),
                 })
                 await ws.send_json({"type": "ack", "action": action, "ok": True,
@@ -397,7 +409,7 @@ async def websocket_positions(ws: WebSocket):
                 "camera_name": stats.get("source", "Camera"),
                 "aruco_marker_id": stats.get("aruco_marker_id", 0),
                 "aruco_marker_size_mm": stats.get("aruco_marker_size_mm", 120.0),
-                "camera_height_m": stats.get("camera_height_m", 0.94),
+                "camera_height_m": stats.get("camera_height_m", 3.0),
                 "screen_config": stats.get("screen_config", {}),
                 "view_config": stats.get("view_config", {}),
                     "visual_config": stats.get("visual_config", {}),

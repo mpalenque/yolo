@@ -21,6 +21,20 @@
       position: relative;
     }
 
+    .presentation-mode .viewport-controls {
+      display: none;
+    }
+
+    .presentation-mode .menu-toggle {
+      display: none;
+    }
+
+    .controls-hidden .viewport-controls {
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(-8px);
+    }
+
     canvas {
       display: block;
       position: fixed;
@@ -49,6 +63,26 @@
       border-radius: 12px;
       color: #fff;
       font: 12px/1.2 Segoe UI, sans-serif;
+      transition: opacity 160ms ease, transform 160ms ease;
+    }
+
+    .menu-toggle {
+      display: none;
+      position: fixed;
+      top: 12px;
+      right: 12px;
+      z-index: 21;
+      padding: 8px 10px;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 999px;
+      background: rgba(0, 0, 0, 0.72);
+      color: #fff;
+      font: 12px/1.2 Segoe UI, sans-serif;
+      cursor: pointer;
+    }
+
+    .controls-hidden .menu-toggle {
+      background: rgba(255, 255, 255, 0.14);
     }
 
     .viewport-controls input {
@@ -85,7 +119,8 @@
   </style>
 </head>
 <body>
-  <div class="viewport-controls">
+  <button id="menu-toggle" class="menu-toggle" type="button" aria-controls="viewport-controls" aria-expanded="true">Ocultar menu (Q)</button>
+  <div id="viewport-controls" class="viewport-controls">
     <label for="vp-x">X</label>
     <input id="vp-x" type="number" min="0" max="10000" step="1" />
     <label for="vp-y">Y</label>
@@ -109,6 +144,15 @@
   <script type="module">
     import * as THREE from 'https://unpkg.com/three@0.165.0/build/three.module.js';
 
+    function parseBooleanParam(value) {
+      if (value == null) return false;
+      const normalized = String(value).trim().toLowerCase();
+      return normalized === '' || normalized === '1' || normalized === 'true' || normalized === 'yes' || normalized === 'on';
+    }
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const PRESENTATION_MODE = parseBooleanParam(urlParams.get('presentation'));
+
     function parseViewportNumber(params, key, fallback, min, max) {
       const raw = Number(params.get(key));
       if (!Number.isFinite(raw)) return fallback;
@@ -116,13 +160,32 @@
     }
 
     const VIEWPORT_STORAGE_KEY = 'yolo.salida.viewport';
+    const CONTROLS_VISIBLE_STORAGE_KEY = 'yolo.salida.controlsVisible';
+
+    function fullWindowViewport() {
+      return {
+        x: 0,
+        y: 0,
+        width: Math.max(64, window.innerWidth),
+        height: Math.max(64, window.innerHeight),
+      };
+    }
 
     function loadViewport() {
-      const params = new URLSearchParams(window.location.search);
+      const params = urlParams;
       let stored = {};
       try {
         stored = JSON.parse(localStorage.getItem(VIEWPORT_STORAGE_KEY) || '{}') || {};
       } catch (_) {}
+      if (PRESENTATION_MODE) {
+        const windowViewport = fullWindowViewport();
+        return {
+          x: parseViewportNumber(params, 'x', windowViewport.x, 0, 10000),
+          y: parseViewportNumber(params, 'y', windowViewport.y, 0, 10000),
+          width: parseViewportNumber(params, 'w', windowViewport.width, 64, 10000),
+          height: parseViewportNumber(params, 'h', windowViewport.height, 64, 10000),
+        };
+      }
       return {
         x: parseViewportNumber(params, 'x', Number(stored.x) || 0, 0, 10000),
         y: parseViewportNumber(params, 'y', Number(stored.y) || 0, 0, 10000),
@@ -133,6 +196,10 @@
 
     const viewport = loadViewport();
 
+    if (PRESENTATION_MODE) {
+      document.documentElement.classList.add('presentation-mode');
+    }
+
     function applyViewportCss() {
       document.documentElement.style.setProperty('--stage-left', `${viewport.x}px`);
       document.documentElement.style.setProperty('--stage-top', `${viewport.y}px`);
@@ -141,12 +208,14 @@
     }
 
     function persistViewport() {
+      if (PRESENTATION_MODE) return;
       try {
         localStorage.setItem(VIEWPORT_STORAGE_KEY, JSON.stringify(viewport));
       } catch (_) {}
     }
 
     function updateViewportUrl() {
+      if (PRESENTATION_MODE) return;
       const url = new URL(window.location.href);
       url.searchParams.set('x', String(viewport.x));
       url.searchParams.set('y', String(viewport.y));
@@ -169,7 +238,29 @@
       centered: document.getElementById('vp-centered'),
       full: document.getElementById('vp-full'),
     };
+    const menuToggleButton = document.getElementById('menu-toggle');
+    const controlsRoot = document.documentElement;
     let viewportApplyTimer = null;
+    let controlsVisible = true;
+
+    try {
+      const savedControlsVisible = localStorage.getItem(CONTROLS_VISIBLE_STORAGE_KEY);
+      if (savedControlsVisible === '0') controlsVisible = false;
+    } catch (_) {}
+
+    function renderControlsVisibility() {
+      controlsRoot.classList.toggle('controls-hidden', !controlsVisible);
+      menuToggleButton.textContent = controlsVisible ? 'Ocultar menu (Q)' : 'Mostrar menu (Q)';
+      menuToggleButton.setAttribute('aria-expanded', controlsVisible ? 'true' : 'false');
+    }
+
+    function toggleControlsVisibility(forceVisible) {
+      controlsVisible = typeof forceVisible === 'boolean' ? forceVisible : !controlsVisible;
+      try {
+        localStorage.setItem(CONTROLS_VISIBLE_STORAGE_KEY, controlsVisible ? '1' : '0');
+      } catch (_) {}
+      renderControlsVisibility();
+    }
 
     function syncViewportInputs() {
       viewportInputs.x.value = String(viewport.x);
@@ -182,13 +273,15 @@
       ws: null,
       people: new Map(),
       planeReady: false,
-      cameraHeightM: 1.5,
-      screenHeightM: 2.0,
+      cameraHeightM: 3.0,
+      screenHeightM: 3.0,
+      screenWidthM: 4.5,
       lastFrameAtMs: 0,
       visualConfig: {
-        room_width_m: 8.0,
+        room_width_m: 4.5,
         min_depth_m: 1.2,
         max_depth_m: 12.0,
+        tracking_max_depth_rel: 1.0,
         person_height_m: 1.7,
         person_width_m: 0.55,
         height_scale: 1.0,
@@ -263,12 +356,7 @@
     }
 
     function fullWindowPreset() {
-      return {
-        x: 0,
-        y: 0,
-        width: Math.max(64, window.innerWidth),
-        height: Math.max(64, window.innerHeight),
-      };
+      return fullWindowViewport();
     }
 
     function resetViewport() {
@@ -284,6 +372,15 @@
       input.addEventListener('input', scheduleViewportApply);
       input.addEventListener('change', applyViewportFromInputs);
     });
+    menuToggleButton.addEventListener('click', () => toggleControlsVisibility());
+    window.addEventListener('keydown', (event) => {
+      if (event.defaultPrevented || event.repeat || event.ctrlKey || event.altKey || event.metaKey) return;
+      const key = String(event.key).toLowerCase();
+      if (key !== 'q' && key !== 'm') return;
+      event.preventDefault();
+      toggleControlsVisibility();
+    });
+    renderControlsVisibility();
     syncViewportInputs();
 
     const particlesGroup = new THREE.Group();
@@ -367,18 +464,18 @@
       particlePositions[idx + 2] = -32 - Math.random() * 12;
 
       const ribbon = Math.sin(timeMs * 0.0012 + particleSeeds[i] * 1.6);
-      const launch = (preset === 'flow' ? 95 : 62) + Math.random() * (preset === 'flow' ? 160 : 110);
+      const launch = (preset === 'flow' ? 88 : 58) + Math.random() * (preset === 'flow' ? 150 : 105);
       const inherit = 0.14 + clamp(motionSpeed / 1400, 0, 0.34);
       const cross = preset === 'flow' ? 78 : 42;
-      const lift = preset === 'flow' ? 18 : 10;
+      const lift = preset === 'flow' ? -118 : -74;
       particleVelocityX[i] = motionX * inherit + trailX * launch + sideX * ribbon * cross + (Math.random() - 0.5) * 34;
       particleVelocityY[i] = motionY * inherit + trailY * launch + sideY * ribbon * cross + lift + (Math.random() - 0.5) * 26;
 
       const lifeMul = clamp(state.visualConfig.particles_life || 2.8, 0.1, 12);
-      const maxLife = ((preset === 'flow' ? 1.2 : 0.9) + Math.random() * (preset === 'flow' ? 1.2 : 0.8) + clamp(motionSpeed / 1200, 0, 0.8)) * lifeMul;
+      const maxLife = ((preset === 'flow' ? 1.8 : 1.25) + Math.random() * (preset === 'flow' ? 1.6 : 1.0) + clamp(motionSpeed / 1200, 0, 0.8)) * lifeMul;
       particleLife[i] = maxLife;
       particleMaxLife[i] = maxLife;
-      particleDrag[i] = preset === 'flow' ? (0.93 + Math.random() * 0.02) : (0.90 + Math.random() * 0.035);
+      particleDrag[i] = preset === 'flow' ? (0.955 + Math.random() * 0.018) : (0.93 + Math.random() * 0.03);
       particleSpin[i] = (Math.random() - 0.5) * (preset === 'flow' ? 2.2 : 1.3);
       particleSizes[i] = Math.max(1.4, baseSize * (preset === 'flow' ? (1.08 + Math.random() * 1.15) : (0.92 + Math.random() * 0.85)));
       particleAlphas[i] = clamp(baseOpacity * (0.72 + clamp(motionSpeed / 900, 0, 0.95)), 0.18, 1.0);
@@ -484,6 +581,14 @@
     }
 
     function resize() {
+      if (PRESENTATION_MODE) {
+        const windowViewport = fullWindowViewport();
+        viewport.x = windowViewport.x;
+        viewport.y = windowViewport.y;
+        viewport.width = windowViewport.width;
+        viewport.height = windowViewport.height;
+        applyViewportCss();
+      }
       const width = viewport.width;
       const height = viewport.height;
       renderer.setSize(width, height);
@@ -588,6 +693,7 @@
       if (config.room_width_m !== undefined) cfg.room_width_m = Math.max(1.0, Number(config.room_width_m) || cfg.room_width_m);
       if (config.min_depth_m !== undefined) cfg.min_depth_m = Math.max(0.15, Number(config.min_depth_m) || cfg.min_depth_m);
       if (config.max_depth_m !== undefined) cfg.max_depth_m = Math.max(0.3, Number(config.max_depth_m) || cfg.max_depth_m);
+      if (config.tracking_max_depth_rel !== undefined) cfg.tracking_max_depth_rel = clamp(Number(config.tracking_max_depth_rel) || cfg.tracking_max_depth_rel, 0.01, 1);
       if (config.person_height_m !== undefined) cfg.person_height_m = Math.max(0.4, Number(config.person_height_m) || cfg.person_height_m);
       if (config.person_width_m !== undefined) cfg.person_width_m = Math.max(0.1, Number(config.person_width_m) || cfg.person_width_m);
       if (config.height_scale !== undefined) cfg.height_scale = Math.max(0.2, Number(config.height_scale) || cfg.height_scale);
@@ -627,22 +733,37 @@
       const width = viewport.width;
       const height = viewport.height;
       const cfg = state.visualConfig;
-      const projectionHeightM = Math.max(0.2, state.screenHeightM || 2.0);
+      const projectionWidthM = Math.max(0.2, cfg.room_width_m || 5.0);
       const u = clamp(person.displayU, 0, 1);
-      const vRaw = clamp(person.displayV, 0, 1);
-      const v = cfg.flip_depth ? 1 - vRaw : vRaw;
-      const worldX = (u - 0.5) * cfg.room_width_m;
-      const worldZ = cfg.min_depth_m + v * (cfg.max_depth_m - cfg.min_depth_m);
-      const focal = (width * 0.5) / Math.tan((cfg.fov_deg * Math.PI / 180) * 0.5);
-      const horizonY = 0;
-      const centerX = width * 0.5;
-      const feetY = horizonY + focal * (projectionHeightM / worldZ) + cfg.bottom_offset_px;
+      const depthLimit = clamp(cfg.tracking_max_depth_rel || 1, 0.01, 1);
+      const depthRaw = clamp(person.displayV, 0, depthLimit);
+      const depthNormalized = clamp(depthRaw / depthLimit, 0, 1);
+      const v = cfg.flip_depth ? 1 - depthNormalized : depthNormalized;
+      const hasPhysicalXZ = Number.isFinite(person.displayX) && Number.isFinite(person.displayZ);
+      const baseWorldX = hasPhysicalXZ ? Number(person.displayX) : (u - 0.5) * projectionWidthM;
+      const worldZ = Math.max(0.15, hasPhysicalXZ ? Math.abs(Number(person.displayZ)) : (cfg.min_depth_m + v * (cfg.max_depth_m - cfg.min_depth_m)));
+      const depthFactor = clamp(v, 0, 1);
+      const horizontalBoost = 1 + (depthFactor * 0.7);
+      const worldX = (baseWorldX + 0.2) * horizontalBoost;
       const bodyHeightM = cfg.person_height_m * cfg.height_scale;
       const bodyWidthM = cfg.person_width_m * cfg.width_scale;
-      const headY = horizonY + focal * ((projectionHeightM - bodyHeightM) / worldZ) + cfg.bottom_offset_px;
-      const centerPx = centerX + focal * (worldX / worldZ) + cfg.offset_x_px;
-      const rectWidth = Math.max(8, focal * (bodyWidthM / worldZ));
-      const rectHeight = Math.max(12, feetY - headY);
+      const sidePadding = width * 0.08;
+      const usableWidth = Math.max(64, width - sidePadding * 2);
+      const normalizedX = clamp((worldX / projectionWidthM) + 0.5, 0, 1);
+      const centerPx = sidePadding + (normalizedX * usableWidth) + cfg.offset_x_px;
+      const scaleBoost = 3.82;
+      const baseHeightPx = height * 0.14;
+      const depthSizeFactor = 1 - (depthFactor * 0.1);
+      const rectHeight = Math.max(36, baseHeightPx * bodyHeightM * scaleBoost * depthSizeFactor);
+      const rectWidth = Math.max(18, rectHeight * (bodyWidthM / Math.max(0.1, bodyHeightM)));
+      const downwardShiftPx = (0.2 / Math.max(0.2, state.screenHeightM || 3.0)) * height;
+      const floorMargin = Math.max(2, height * 0.003);
+      const visibleFeetY = Math.min(
+        height - floorMargin,
+        Math.max(rectHeight + floorMargin, height - floorMargin + cfg.bottom_offset_px + downwardShiftPx)
+      );
+      const feetY = visibleFeetY - cfg.offset_y_px;
+      const headY = feetY - rectHeight;
       return {
         depth: worldZ,
         centerPx,
@@ -750,13 +871,13 @@
           }
         }
 
-        particleVelocityY[i] += (preset === 'flow' ? 26 : 14) * deltaSec * speedMul;
+        particleVelocityY[i] += (preset === 'flow' ? -34 : -16) * deltaSec * speedMul;
         const drag = Math.pow(clamp(particleDrag[i], 0.8, 0.999), deltaSec * 60);
         particleVelocityX[i] *= drag;
         particleVelocityY[i] *= drag;
         px += particleVelocityX[i] * deltaSec * speedMul;
         py += particleVelocityY[i] * deltaSec * speedMul;
-        particleLife[i] -= deltaSec * (preset === 'flow' ? 1.0 : 1.18) * clamp(0.75 + speedMul * 0.3, 0.6, 3.2);
+        particleLife[i] -= deltaSec * (preset === 'flow' ? 0.62 : 0.82) * clamp(0.7 + speedMul * 0.22, 0.55, 2.4);
 
         const speed = Math.hypot(particleVelocityX[i], particleVelocityY[i]);
         const speedNorm = clamp(speed / 210, 0, 2.5);
@@ -818,6 +939,9 @@
         if (msg.screen_config && typeof msg.screen_config === 'object' && Number.isFinite(Number(msg.screen_config.height_m))) {
           state.screenHeightM = Math.max(0.2, Number(msg.screen_config.height_m));
         }
+        if (msg.screen_config && typeof msg.screen_config === 'object' && Number.isFinite(Number(msg.screen_config.width_m))) {
+          state.screenWidthM = Math.max(0.2, Number(msg.screen_config.width_m));
+        }
         applyVisualConfig(msg.visual_config || null);
 
         const incomingIds = new Set();
@@ -828,9 +952,13 @@
           const person = state.people.get(id) || {
             id,
             displayU: typeof payload.u === 'number' ? payload.u : 0.5,
-            displayV: typeof payload.v === 'number' ? payload.v : 0.5,
+            displayV: typeof payload.depth_rel === 'number' ? payload.depth_rel : (typeof payload.v === 'number' ? payload.v : 0.5),
             targetU: typeof payload.u === 'number' ? payload.u : 0.5,
-            targetV: typeof payload.v === 'number' ? payload.v : 0.5,
+            targetV: typeof payload.depth_rel === 'number' ? payload.depth_rel : (typeof payload.v === 'number' ? payload.v : 0.5),
+            displayX: typeof payload.x === 'number' ? payload.x : null,
+            displayZ: typeof payload.z === 'number' ? payload.z : null,
+            targetX: typeof payload.x === 'number' ? payload.x : null,
+            targetZ: typeof payload.z === 'number' ? payload.z : null,
             lastSeen: now,
             lastUpdateAt: now,
             smoothedSpeed: 0,
@@ -852,7 +980,9 @@
           };
 
           const nextU = typeof payload.u === 'number' ? payload.u : person.targetU;
-          const nextV = typeof payload.v === 'number' ? payload.v : person.targetV;
+          const nextV = typeof payload.depth_rel === 'number' ? payload.depth_rel : (typeof payload.v === 'number' ? payload.v : person.targetV);
+          const nextX = typeof payload.x === 'number' ? payload.x : person.targetX;
+          const nextZ = typeof payload.z === 'number' ? payload.z : person.targetZ;
           const dt = Math.max(0.016, (now - person.lastUpdateAt) / 1000);
           const deltaU = nextU - person.targetU;
           const deltaV = nextV - person.targetV;
@@ -864,6 +994,8 @@
           person.lastUpdateAt = now;
           person.targetU = nextU;
           person.targetV = nextV;
+          person.targetX = nextX;
+          person.targetZ = nextZ;
           person.lastSeen = now;
           ensurePersonResources(person);
           state.people.set(id, person);
@@ -899,6 +1031,12 @@
         const alpha = Math.min(0.24, (now - person.lastSeen) < 180 ? 0.18 : 0.08);
         person.displayU += (person.targetU - person.displayU) * alpha;
         person.displayV += (person.targetV - person.displayV) * alpha;
+        if (Number.isFinite(person.targetX)) {
+          person.displayX = Number.isFinite(person.displayX) ? (person.displayX + (person.targetX - person.displayX) * alpha) : person.targetX;
+        }
+        if (Number.isFinite(person.targetZ)) {
+          person.displayZ = Number.isFinite(person.displayZ) ? (person.displayZ + (person.targetZ - person.displayZ) * alpha) : person.targetZ;
+        }
 
         const projected = projectPerson(person);
         const video = person.video;

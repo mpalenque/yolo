@@ -104,10 +104,10 @@ class Tracker:
         self._mirror_x = False
         self._aruco_marker_id = 0
         self._aruco_marker_size_mm = 120.0
-        self._camera_height_m = 0.94
+        self._camera_height_m = 3.0
         self._screen_config = {
             "enabled": True, "x_m": 0.0, "z_m": 1.2,
-            "width_m": 3.5, "height_m": 2.0, "yaw_deg": 0.0,
+            "width_m": 4.5, "height_m": 3.0, "yaw_deg": 0.0,
         }
         self._view_config = {
             "content_yaw_deg": 45.0,
@@ -118,7 +118,7 @@ class Tracker:
             "content_target_z_m": 0.0,
         }
         self._visual_config = {
-            "room_width_m": 8.0,
+            "room_width_m": 5.0,
             "min_depth_m": 1.2,
             "max_depth_m": 12.0,
             "tracking_max_depth_rel": 1.0,
@@ -1197,9 +1197,12 @@ class Tracker:
                         if used_plane_projection and depth_rel > tracking_max_depth_rel:
                             continue
                         if used_plane_projection:
-                            marker_size_m = max(0.02, self._aruco_marker_size_mm / 1000.0)
-                            world_x_m = (u - 0.5) * marker_size_m
-                            world_z_m = (v - 0.5) * marker_size_m
+                            screen_cfg = self.get_screen_config()
+                            screen_center_x_m = float(screen_cfg.get("x_m", 0.0))
+                            screen_z_m = max(0.8, float(screen_cfg.get("z_m", 1.2)))
+                            screen_width_m = max(1.5, float(screen_cfg.get("width_m", 4.5)))
+                            world_x_m = screen_center_x_m + ((u - 0.5) * screen_width_m)
+                            world_z_m = 0.22 + (v * max(0.25, screen_z_m - 0.34))
 
                     n_en_zona += 1
 

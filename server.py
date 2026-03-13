@@ -87,9 +87,13 @@ async def aruco_page():
 
 
 @app.get("/configuracion.html", response_class=HTMLResponse)
-@app.get("/visual.html", response_class=HTMLResponse)
 async def configuracion_page():
     return _serve_static_html("configuracion.html")
+
+
+@app.get("/visual.html", response_class=HTMLResponse)
+async def visual_page():
+    return _serve_static_html("visual.html")
 
 
 @app.get("/fullscreen", response_class=HTMLResponse)
@@ -221,6 +225,15 @@ async def upload_video(file: UploadFile = File(...)):
         shutil.copyfileobj(file.file, f)
     tracker.set_source(str(dest), f"Video: {file.filename}")
     return JSONResponse({"ok": True, "path": str(dest), "name": file.filename})
+
+
+# ── Refresh signal for fullscreen2 clients ────────────────────────────────────
+_refresh_signal = {"pending": False}
+
+@app.post("/api/refresh-clients")
+async def refresh_clients():
+    _refresh_signal["pending"] = True
+    return JSONResponse({"ok": True, "message": "Refresh signal sent"})
 
 
 # ── WebSocket de control ─────────────────────────────────────────────────────
@@ -401,6 +414,9 @@ async def websocket_positions(ws: WebSocket):
     try:
         while True:
             stats = tracker.get_stats()
+            refresh = _refresh_signal["pending"]
+            if refresh:
+                _refresh_signal["pending"] = False
             await ws.send_json({
                 "type": "positions",
                 "people": tracker.get_people_plane(),
@@ -412,8 +428,9 @@ async def websocket_positions(ws: WebSocket):
                 "camera_height_m": stats.get("camera_height_m", 3.0),
                 "screen_config": stats.get("screen_config", {}),
                 "view_config": stats.get("view_config", {}),
-                    "visual_config": stats.get("visual_config", {}),
+                "visual_config": stats.get("visual_config", {}),
                 "mode": stats.get("mode", "MENU"),
+                "refresh": refresh,
                 "ts": asyncio.get_running_loop().time(),
             })
             await asyncio.sleep(0.067)

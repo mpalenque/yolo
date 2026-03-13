@@ -241,11 +241,11 @@
     const menuToggleButton = document.getElementById('menu-toggle');
     const controlsRoot = document.documentElement;
     let viewportApplyTimer = null;
-    let controlsVisible = true;
+    let controlsVisible = false;
 
     try {
       const savedControlsVisible = localStorage.getItem(CONTROLS_VISIBLE_STORAGE_KEY);
-      if (savedControlsVisible === '0') controlsVisible = false;
+      if (savedControlsVisible === '1') controlsVisible = true;
     } catch (_) {}
 
     function renderControlsVisibility() {
@@ -298,6 +298,7 @@
         particles_opacity: 0.3,
         particles_speed: 1.0,
         particles_life: 2.8,
+        max_trackers: 0,
         particles_preset: 'classic',
       },
     };
@@ -382,6 +383,11 @@
     });
     renderControlsVisibility();
     syncViewportInputs();
+
+    // Auto-fullscreen on load
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {});
+    }
 
     const particlesGroup = new THREE.Group();
     scene.add(particlesGroup);
@@ -717,6 +723,7 @@
       if (config.particles_opacity !== undefined) cfg.particles_opacity = clamp(Number(config.particles_opacity) || cfg.particles_opacity, 0, 1);
       if (config.particles_speed !== undefined) cfg.particles_speed = clamp(Number(config.particles_speed) || cfg.particles_speed, 0, 10);
       if (config.particles_life !== undefined) cfg.particles_life = clamp(Number(config.particles_life) || cfg.particles_life, 0.1, 12);
+      if (config.max_trackers !== undefined) cfg.max_trackers = Math.max(0, Math.round(Number(config.max_trackers) || 0));
       cfg.max_depth_m = Math.max(cfg.min_depth_m + 0.1, cfg.max_depth_m);
       rebuildParticles();
     }
@@ -762,13 +769,13 @@
         height - floorMargin,
         Math.max(rectHeight + floorMargin, height - floorMargin + cfg.bottom_offset_px + downwardShiftPx)
       );
-      const feetY = visibleFeetY - cfg.offset_y_px;
+      const feetY = visibleFeetY + cfg.offset_y_px;
       const headY = feetY - rectHeight;
       return {
         depth: worldZ,
         centerPx,
-        headY: headY + cfg.offset_y_px,
-        feetY: feetY + cfg.offset_y_px,
+        headY,
+        feetY,
         rectWidth,
         rectHeight,
       };
@@ -932,6 +939,11 @@
         }
         if (msg.type !== 'positions') return;
 
+        if (msg.refresh) {
+          location.reload();
+          return;
+        }
+
         state.planeReady = !!msg.plane_ready;
         if (typeof msg.camera_height_m === 'number' && Number.isFinite(msg.camera_height_m)) {
           state.cameraHeightM = Math.max(0.1, msg.camera_height_m);
@@ -1090,6 +1102,17 @@
         mesh.scale.x = (person.directionX < 0 ? -1 : 1) * drawWidth;
         mesh.scale.y = drawHeight;
         mesh.renderOrder = 1000 - projected.depth;
+      }
+
+      // Enforce max_trackers limit: hide excess people (farthest first)
+      const maxT = state.visualConfig.max_trackers || 0;
+      if (maxT > 0 && projectedBodies.length > maxT) {
+        projectedBodies.sort((a, b) => a.person.displayV - b.person.displayV);
+        for (let i = maxT; i < projectedBodies.length; i++) {
+          const p = projectedBodies[i].person;
+          if (p.mesh) p.mesh.visible = false;
+        }
+        projectedBodies.length = maxT;
       }
 
       updateParticles(timeMs || 0, projectedBodies, deltaSec);

@@ -139,6 +139,7 @@ class Tracker:
             "particles_speed": 1.0,
             "particles_life": 2.8,
             "particles_preset": "classic",
+            "max_trackers": 0,
         }
         self._aruco_auto_active = False
         self._aruco_detected = False
@@ -550,6 +551,8 @@ class Tracker:
             if "particles_preset" in config:
                 preset = str(config.get("particles_preset", visual.get("particles_preset", "classic"))).strip().lower()
                 visual["particles_preset"] = preset if preset in ("classic", "flow") else "classic"
+            if "max_trackers" in config:
+                visual["max_trackers"] = int(max(0, int(config.get("max_trackers", visual.get("max_trackers", 0)))))
             visual["max_depth_m"] = max(visual["min_depth_m"] + 0.1, visual["max_depth_m"])
             self._visual_config = visual
             self._save_zona()

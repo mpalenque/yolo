@@ -314,6 +314,11 @@
       <span class="yval" id="yParticlesLifeVal">2.8</span>
     </div>
     <div class="yctrl">
+      <label for="yMovieLife">Vida Películas</label>
+      <input id="yMovieLife" type="range" min="0.5" max="15" step="0.1" value="1.6" />
+      <span class="yval" id="yMovieLifeVal">1.6</span>
+    </div>
+    <div class="yctrl">
       <label for="yMaxTrackers">Max Track <small>(0=∞)</small></label>
       <input id="yMaxTrackers" type="range" min="0" max="20" step="1" value="0" />
       <span class="yval" id="yMaxTrackersVal">∞</span>
@@ -494,6 +499,8 @@
       mediaScaleVal: document.getElementById('yMediaScaleVal'),
       particlesLife: document.getElementById('yParticlesLife'),
       particlesLifeVal: document.getElementById('yParticlesLifeVal'),
+      movieLife: document.getElementById('yMovieLife'),
+      movieLifeVal: document.getElementById('yMovieLifeVal'),
       maxTrackers: document.getElementById('yMaxTrackers'),
       maxTrackersVal: document.getElementById('yMaxTrackersVal'),
     };
@@ -577,6 +584,7 @@
         yellowControls.offsetY,
         yellowControls.mediaScale,
         yellowControls.particlesLife,
+        yellowControls.movieLife,
         yellowControls.maxTrackers,
       ]);
     }
@@ -725,6 +733,10 @@
         setInputValueIfAllowed(yellowControls.particlesLife, cfg.particles_life, visualConfigDirtyUntil, force);
         yellowControls.particlesLifeVal.textContent = Number(cfg.particles_life).toFixed(1);
       }
+      if (cfg.movie_life !== undefined) {
+        setInputValueIfAllowed(yellowControls.movieLife, cfg.movie_life, visualConfigDirtyUntil, force);
+        yellowControls.movieLifeVal.textContent = Number(cfg.movie_life).toFixed(1);
+      }
       if (cfg.max_trackers !== undefined) {
         setInputValueIfAllowed(yellowControls.maxTrackers, cfg.max_trackers, visualConfigDirtyUntil, force);
         yellowControls.maxTrackersVal.textContent = Number(cfg.max_trackers) === 0 ? '∞' : cfg.max_trackers;
@@ -774,6 +786,7 @@
         particles_opacity: valueOf(controls.particlesOpacity),
         particles_speed: valueOf(controls.particlesSpeed),
         particles_life: Math.max(0.1, valueOf(controls.particlesLife) || 2.8),
+        movie_life: Math.max(0.5, valueOf(yellowControls.movieLife)),
         max_trackers: Math.round(valueOf(yellowControls.maxTrackers)),
       };
       try {
@@ -933,6 +946,11 @@
       const v = yellowControls.particlesLife.value;
       yellowControls.particlesLifeVal.textContent = Number(v).toFixed(1);
       controls.particlesLife.value = v;
+      scheduleVisualConfigSave();
+    });
+    yellowControls.movieLife.addEventListener('input', () => {
+      const v = yellowControls.movieLife.value;
+      yellowControls.movieLifeVal.textContent = Number(v).toFixed(1);
       scheduleVisualConfigSave();
     });
     yellowControls.maxTrackers.addEventListener('input', () => {

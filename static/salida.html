@@ -298,6 +298,7 @@
         particles_opacity: 0.3,
         particles_speed: 1.0,
         particles_life: 2.8,
+        movie_life: 1.6,
         max_trackers: 0,
         particles_preset: 'classic',
       },
@@ -723,6 +724,7 @@
       if (config.particles_opacity !== undefined) cfg.particles_opacity = clamp(Number(config.particles_opacity) || cfg.particles_opacity, 0, 1);
       if (config.particles_speed !== undefined) cfg.particles_speed = clamp(Number(config.particles_speed) || cfg.particles_speed, 0, 10);
       if (config.particles_life !== undefined) cfg.particles_life = clamp(Number(config.particles_life) || cfg.particles_life, 0.1, 12);
+      if (config.movie_life !== undefined) cfg.movie_life = Math.max(0.5, Math.min(15, Number(config.movie_life) || 1.6));
       if (config.max_trackers !== undefined) cfg.max_trackers = Math.max(0, Math.round(Number(config.max_trackers) || 0));
       cfg.max_depth_m = Math.max(cfg.min_depth_m + 0.1, cfg.max_depth_m);
       rebuildParticles();
@@ -1029,7 +1031,7 @@
       const projectedBodies = [];
 
       for (const [id, person] of state.people) {
-        if (now - person.lastSeen > 1600) {
+        if (now - person.lastSeen > (state.visualConfig.movie_life || 1.6) * 1000) {
           disposePersonResources(person);
           state.people.delete(id);
           continue;

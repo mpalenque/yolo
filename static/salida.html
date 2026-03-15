@@ -300,6 +300,8 @@
         particles_life: 2.8,
         movie_life: 1.6,
         max_trackers: 0,
+        border_enabled: false,
+        border_width: 3,
         particles_preset: 'classic',
       },
     };
@@ -725,6 +727,8 @@
       if (config.particles_speed !== undefined) cfg.particles_speed = clamp(Number(config.particles_speed) || cfg.particles_speed, 0, 10);
       if (config.particles_life !== undefined) cfg.particles_life = clamp(Number(config.particles_life) || cfg.particles_life, 0.1, 12);
       if (config.movie_life !== undefined) cfg.movie_life = Math.max(0.5, Math.min(15, Number(config.movie_life) || 1.6));
+      if (config.border_enabled !== undefined) cfg.border_enabled = !!config.border_enabled;
+      if (config.border_width !== undefined) cfg.border_width = Math.max(3, Math.min(10, Math.round(Number(config.border_width) || 3)));
       if (config.max_trackers !== undefined) cfg.max_trackers = Math.max(0, Math.round(Number(config.max_trackers) || 0));
       cfg.max_depth_m = Math.max(cfg.min_depth_m + 0.1, cfg.max_depth_m);
       rebuildParticles();
@@ -1118,6 +1122,17 @@
       }
 
       updateParticles(timeMs || 0, projectedBodies, deltaSec);
+
+      // Apply border based on visual config
+      const bcfg = state.visualConfig;
+      if (bcfg.border_enabled) {
+        const bw = bcfg.border_width || 3;
+        const borderColor = bcfg.particles_preset === 'flow' ? 'rgb(255,184,61)' : 'rgb(255,133,41)';
+        document.body.style.border = bw + 'px solid ' + borderColor;
+        document.body.style.boxSizing = 'border-box';
+      } else {
+        document.body.style.border = 'none';
+      }
 
       renderer.render(scene, camera);
       requestAnimationFrame(animate);

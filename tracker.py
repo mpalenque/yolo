@@ -141,6 +141,8 @@ class Tracker:
             "particles_preset": "classic",
             "movie_life": 1.6,
             "max_trackers": 0,
+            "border_enabled": False,
+            "border_width": 3,
         }
         self._aruco_auto_active = False
         self._aruco_detected = False
@@ -554,6 +556,10 @@ class Tracker:
                 visual["particles_preset"] = preset if preset in ("classic", "flow") else "classic"
             if "movie_life" in config:
                 visual["movie_life"] = max(0.5, min(15.0, float(config.get("movie_life", visual.get("movie_life", 1.6)))))
+            if "border_enabled" in config:
+                visual["border_enabled"] = bool(config.get("border_enabled", visual.get("border_enabled", False)))
+            if "border_width" in config:
+                visual["border_width"] = int(max(3, min(10, int(config.get("border_width", visual.get("border_width", 3))))))
             if "max_trackers" in config:
                 visual["max_trackers"] = int(max(0, int(config.get("max_trackers", visual.get("max_trackers", 0)))))
             visual["max_depth_m"] = max(visual["min_depth_m"] + 0.1, visual["max_depth_m"])

@@ -323,6 +323,17 @@
       <input id="yMaxTrackers" type="range" min="0" max="20" step="1" value="0" />
       <span class="yval" id="yMaxTrackersVal">∞</span>
     </div>
+    <button id="yBorderToggle" type="button" style="
+      padding:6px 14px; border:2px solid #996600; border-radius:8px;
+      background:#555; color:#fff; font-weight:800; font-size:12px;
+      cursor:pointer; white-space:nowrap; text-transform:uppercase;
+      letter-spacing:0.05em; min-height:34px;
+    ">BORDE OFF</button>
+    <div class="yctrl">
+      <label for="yBorderWidth">Borde px</label>
+      <input id="yBorderWidth" type="range" min="3" max="10" step="1" value="3" />
+      <span class="yval" id="yBorderWidthVal">3</span>
+    </div>
     <button id="btnRefreshFS2" type="button" style="
       padding:8px 16px; border:2px solid #996600; border-radius:8px;
       background:#cc8800; color:#fff; font-weight:800; font-size:13px;
@@ -503,6 +514,9 @@
       movieLifeVal: document.getElementById('yMovieLifeVal'),
       maxTrackers: document.getElementById('yMaxTrackers'),
       maxTrackersVal: document.getElementById('yMaxTrackersVal'),
+      borderToggle: document.getElementById('yBorderToggle'),
+      borderWidth: document.getElementById('yBorderWidth'),
+      borderWidthVal: document.getElementById('yBorderWidthVal'),
     };
 
     const state = {
@@ -586,6 +600,7 @@
         yellowControls.particlesLife,
         yellowControls.movieLife,
         yellowControls.maxTrackers,
+        yellowControls.borderWidth,
       ]);
     }
 
@@ -737,6 +752,16 @@
         setInputValueIfAllowed(yellowControls.movieLife, cfg.movie_life, visualConfigDirtyUntil, force);
         yellowControls.movieLifeVal.textContent = Number(cfg.movie_life).toFixed(1);
       }
+      if (cfg.border_enabled !== undefined) {
+        const on = !!cfg.border_enabled;
+        yellowControls.borderToggle.dataset.on = on ? '1' : '0';
+        yellowControls.borderToggle.textContent = on ? 'BORDE ON' : 'BORDE OFF';
+        yellowControls.borderToggle.style.background = on ? '#cc8800' : '#555';
+      }
+      if (cfg.border_width !== undefined) {
+        setInputValueIfAllowed(yellowControls.borderWidth, cfg.border_width, visualConfigDirtyUntil, force);
+        yellowControls.borderWidthVal.textContent = Math.round(cfg.border_width);
+      }
       if (cfg.max_trackers !== undefined) {
         setInputValueIfAllowed(yellowControls.maxTrackers, cfg.max_trackers, visualConfigDirtyUntil, force);
         yellowControls.maxTrackersVal.textContent = Number(cfg.max_trackers) === 0 ? '∞' : cfg.max_trackers;
@@ -788,6 +813,8 @@
         particles_life: Math.max(0.1, valueOf(controls.particlesLife) || 2.8),
         movie_life: Math.max(0.5, valueOf(yellowControls.movieLife)),
         max_trackers: Math.round(valueOf(yellowControls.maxTrackers)),
+        border_enabled: yellowControls.borderToggle.dataset.on === '1',
+        border_width: Math.round(valueOf(yellowControls.borderWidth)),
       };
       try {
         const res = await fetch('/api/visual-config', {
@@ -956,6 +983,19 @@
     yellowControls.maxTrackers.addEventListener('input', () => {
       const v = yellowControls.maxTrackers.value;
       yellowControls.maxTrackersVal.textContent = Number(v) === 0 ? '\u221e' : v;
+      scheduleVisualConfigSave();
+    });
+    yellowControls.borderToggle.addEventListener('click', () => {
+      const cur = yellowControls.borderToggle.dataset.on === '1';
+      const next = !cur;
+      yellowControls.borderToggle.dataset.on = next ? '1' : '0';
+      yellowControls.borderToggle.textContent = next ? 'BORDE ON' : 'BORDE OFF';
+      yellowControls.borderToggle.style.background = next ? '#cc8800' : '#555';
+      scheduleVisualConfigSave();
+    });
+    yellowControls.borderWidth.addEventListener('input', () => {
+      const v = yellowControls.borderWidth.value;
+      yellowControls.borderWidthVal.textContent = v;
       scheduleVisualConfigSave();
     });
 
